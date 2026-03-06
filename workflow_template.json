@@ -1,0 +1,235 @@
+{
+    "name": "Telegram → AI Video Pipeline",
+    "nodes": [
+        {
+            "parameters": {
+                "updates": [
+                    "message"
+                ],
+                "additionalFields": {}
+            },
+            "id": "telegram-trigger",
+            "name": "Telegram Trigger",
+            "type": "n8n-nodes-base.telegramTrigger",
+            "typeVersion": 1,
+            "position": [
+                240,
+                300
+            ],
+            "credentials": {
+                "telegramApi": {
+                    "id": "telegram-bot",
+                    "name": "Telegram Bot"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "%%CODE_01%%"
+            },
+            "id": "session-manager",
+            "name": "Session Manager",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true
+                    },
+                    "conditions": [
+                        {
+                            "id": "ready-check",
+                            "leftValue": "={{ $json.skip }}",
+                            "rightValue": false,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "equals"
+                            }
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "skip-check",
+            "name": "Ready to Process?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "%%CODE_02%%"
+            },
+            "id": "transcribe-audio",
+            "name": "Transcribe Audio",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                900,
+                380
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "%%CODE_03%%"
+            },
+            "id": "generate-aroll",
+            "name": "Generate A-Roll (Pika Lip-Sync)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1120,
+                380
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "%%CODE_04%%"
+            },
+            "id": "analyze-broll",
+            "name": "Analyze B-Roll & Edit Plan",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1340,
+                380
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "%%CODE_05%%"
+            },
+            "id": "compose-video",
+            "name": "Compose Final Video",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1560,
+                380
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "%%CODE_06%%"
+            },
+            "id": "send-result",
+            "name": "Generate Caption & Send Video",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1780,
+                380
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "%%CODE_07%%"
+            },
+            "id": "error-handler",
+            "name": "Error Handler",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1340,
+                560
+            ]
+        }
+    ],
+    "connections": {
+        "Telegram Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Session Manager",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Session Manager": {
+            "main": [
+                [
+                    {
+                        "node": "Ready to Process?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ready to Process?": {
+            "main": [
+                [
+                    {
+                        "node": "Transcribe Audio",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                []
+            ]
+        },
+        "Transcribe Audio": {
+            "main": [
+                [
+                    {
+                        "node": "Generate A-Roll (Pika Lip-Sync)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate A-Roll (Pika Lip-Sync)": {
+            "main": [
+                [
+                    {
+                        "node": "Analyze B-Roll & Edit Plan",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Analyze B-Roll & Edit Plan": {
+            "main": [
+                [
+                    {
+                        "node": "Compose Final Video",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Compose Final Video": {
+            "main": [
+                [
+                    {
+                        "node": "Generate Caption & Send Video",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "errorWorkflow": ""
+    },
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 1,
+    "versionId": "1"
+}

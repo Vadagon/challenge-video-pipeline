@@ -1,0 +1,235 @@
+{
+  "name": "Telegram → AI Video Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "telegram-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "telegram-bot",
+          "name": "Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE: Session Manager\n// Receives Telegram updates from the n8n Telegram Trigger node and tracks\n// 2-message session state per chat.\n// Message 1: Voice audio only\n// Message 2: Caption + Subject (Photo/Video) + B-Roll Video(s) → triggers pipeline\n\nconst TELEGRAM_BOT_TOKEN = \"8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc\";\n\n// The Telegram Trigger node exposes the update directly (not nested under .body)\nconst update = $input.first().json;\nconst message = update.message || update.edited_message || null;\n\nif (!message) {\n  return [{ json: { skip: true, reason: \"no message\" } }];\n}\n\nconst chatId = String(message.chat.id);\n\n// Load existing session from workflow static data\nconst staticData = $getWorkflowStaticData(\"global\");\nif (!staticData.sessions) staticData.sessions = {};\n\nlet session = staticData.sessions[chatId] || { step: 0 };\n\n// Prevent duplicate processing if already in progress (but allow new voice notes)\nif (session.step === 2 && !message.voice) {\n  return [{ json: { skip: true, reason: \"already processing\" } }];\n}\n\n// ── STEP 1: Voice message ──────────────────────────────────────────────────\nif (message.voice && (session.step === 0 || session.step === 2)) {\n  const fileId = message.voice.file_id;\n\n  // Resolve file path via Telegram API\n  const fileInfoResp = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${fileId}`,\n  });\n\n  const filePath = fileInfoResp.result.file_path;\n  const audioUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${filePath}`;\n\n  session = { step: 1, chatId, audioUrl, audioFileId: fileId, videos: [] };\n  staticData.sessions[chatId] = session;\n\n  // Acknowledge receipt\n  await this.helpers.httpRequest({\n    method: \"POST\",\n    url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n    body: {\n      chat_id: chatId,\n      text: \"🎙️ Got your voice note!\\n\\nNow send a single message (or an album) with:\\n📝 Caption (as message text)\\n👤 A video of you (or a photo)\\n🎬 One or more clips (b-roll)\",\n    },\n    json: true,\n  });\n\n  return [{ json: { skip: true, reason: \"waiting for step 2\" } }];\n}\n\n// ── STEP 2: Accumulate Caption + Subject + Videos ─────────────────────────\nif (session.step === 1) {\n  const currentCaption = message.caption || message.text || \"\";\n  const photo = message.photo;\n  const video = message.video;\n\n  let updated = false;\n\n  // 1. Accumulate Caption (if we don't have one yet)\n  if (currentCaption && !session.caption) {\n    session.caption = currentCaption;\n    updated = true;\n  }\n\n  // 2. Accumulate Subject (The first person-centric media we get)\n  // If we get multiple videos, the first one is the subject, others are b-roll\n  if (!session.subjectUrl) {\n    if (photo) {\n      const bestPhoto = photo[photo.length - 1];\n      const photoInfoResp = await this.helpers.httpRequest({\n        method: \"GET\",\n        url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${bestPhoto.file_id}`,\n      });\n      session.subjectUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${photoInfoResp.result.file_path}`;\n      session.subjectType = \"image\";\n      updated = true;\n    } else if (video) {\n      const videoInfoResp = await this.helpers.httpRequest({\n        method: \"GET\",\n        url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${video.file_id}`,\n      });\n      session.subjectUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${videoInfoResp.result.file_path}`;\n      session.subjectType = \"video\";\n      updated = true;\n    }\n  } else if (video) {\n    // 3. Accumulate B-Roll Video\n    const videoInfoResp = await this.helpers.httpRequest({\n      method: \"GET\",\n      url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${video.file_id}`,\n    });\n    const videoUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${videoInfoResp.result.file_path}`;\n\n    if (!session.videos) session.videos = [];\n    if (!session.videos.find(v => v.fileId === video.file_id)) {\n      session.videos.push({ fileId: video.file_id, url: videoUrl, duration: video.duration });\n      updated = true;\n    }\n  }\n\n  // Save updated session state\n  staticData.sessions[chatId] = session;\n\n  // 4. Check if we have everything needed to proceed\n  const hasCaption = !!session.caption;\n  const hasSubject = !!session.subjectUrl;\n  const hasVideos = session.videos && session.videos.length > 0;\n\n  if (hasCaption && hasSubject && hasVideos) {\n    // TRIGGER PIPELINE\n    session.step = 2; // Move to \"processing\" state\n    staticData.sessions[chatId] = session;\n\n    await this.helpers.httpRequest({\n      method: \"POST\",\n      url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n      body: {\n        chat_id: chatId,\n        text: \"⚙️ All assets received! Starting video generation pipeline...\\n\\nThis may take a few minutes ☕\",\n      },\n      json: true,\n    });\n\n    return [{\n      json: {\n        skip: false,\n        chatId,\n        audioUrl: session.audioUrl,\n        subjectUrl: session.subjectUrl,\n        subjectType: session.subjectType,\n        videos: session.videos,\n        rawCaption: session.caption,\n      },\n    }];\n  }\n\n  // 5. Still collecting\n  if (updated && !message.media_group_id) {\n    const missing = [];\n    if (!hasCaption) missing.push(\"📝 caption\");\n    if (!hasSubject) missing.push(\"👤 you (video/photo)\");\n    if (!hasVideos) missing.push(\"🎬 clips (b-roll)\");\n\n    await this.helpers.httpRequest({\n      method: \"POST\",\n      url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n      body: {\n        chat_id: chatId,\n        text: `📥 Received some assets. Still missing: ${missing.join(\", \")}.`,\n      },\n      json: true,\n    });\n  }\n\n  return [{ json: { skip: true, reason: \"collecting assets\", hasCaption, hasSubject, videoCount: (session.videos || []).length } }];\n}\n\n// ── DEFAULT: Unexpected State Reset ───────────────────────────────────────\ndelete staticData.sessions[chatId];\nawait this.helpers.httpRequest({\n  method: \"POST\",\n  url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n  body: {\n    chat_id: chatId,\n    text: \"👋 Send a voice note to start! The bot will guide you through the next steps.\",\n  },\n  json: true,\n});\n\nreturn [{ json: { skip: true, reason: \"unexpected state reset\" } }];\n"
+      },
+      "id": "session-manager",
+      "name": "Session Manager",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "ready-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "skip-check",
+      "name": "Ready to Process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE: Transcribe Audio\n// Sends the Telegram voice note URL to fal.ai Whisper for transcription\n// Uses fal-ai/whisper which accepts a direct audio URL — no download needed\n\nconst FAL_AI_API_KEY = \"b58c67f2-94ec-4cfa-bfb7-158a15203b29:54446e43821d9169aba9d11b0f50f536\";\n\nconst { audioUrl, chatId, photoUrl, videos, rawCaption } = $input.first().json;\n\n// Submit transcription job to fal.ai Whisper (supports Telegram .ogg files)\nconst submitResp = await this.helpers.httpRequest({\n  method: \"POST\",\n  url: \"https://queue.fal.run/fal-ai/whisper\",\n  headers: {\n    Authorization: `Key ${FAL_AI_API_KEY}`,\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    audio_url: audioUrl,\n    task: \"transcribe\",\n    language: \"en\",\n    chunk_level: \"segment\",\n    version: \"3\",\n  }),\n});\n\nconst requestId = submitResp.request_id;\nif (!requestId) {\n  throw new Error(\"fal.ai Whisper did not return a request_id: \" + JSON.stringify(submitResp));\n}\n\n// Poll until complete (max 2 minutes)\nlet transcription = \"\";\nfor (let i = 0; i < 24; i++) {\n  await new Promise((r) => setTimeout(r, 5000));\n\n  const statusResp = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: `https://queue.fal.run/fal-ai/whisper/requests/${requestId}/status`,\n    headers: { Authorization: `Key ${FAL_AI_API_KEY}` },\n  });\n\n  if (statusResp.status === \"COMPLETED\") {\n    const resultResp = await this.helpers.httpRequest({\n      method: \"GET\",\n      url: `https://queue.fal.run/fal-ai/whisper/requests/${requestId}`,\n      headers: { Authorization: `Key ${FAL_AI_API_KEY}` },\n    });\n    // fal.ai Whisper returns: { text: \"...\", chunks: [...] }\n    transcription = resultResp.text || resultResp.transcription || \"\";\n    break;\n  }\n\n  if (statusResp.status === \"FAILED\") {\n    throw new Error(\"fal.ai Whisper transcription failed: \" + JSON.stringify(statusResp));\n  }\n}\n\nif (!transcription) {\n  throw new Error(\"Timeout waiting for Whisper transcription result\");\n}\n\nreturn [{\n  json: {\n    chatId,\n    audioUrl,\n    photoUrl,\n    videos,\n    rawCaption,\n    transcription,\n  },\n}];\n"
+      },
+      "id": "transcribe-audio",
+      "name": "Transcribe Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE: Generate A-Roll via fal.ai (Sync Lipsync 2 Pro)\n// High-quality lip-sync for both images and videos.\n// Sync Lipsync 2 Pro supports images as visual input directly (passed to video_url).\n\nconst FAL_AI_API_KEY = \"b58c67f2-94ec-4cfa-bfb7-158a15203b29:54446e43821d9169aba9d11b0f50f536\";\n\nconst { chatId, audioUrl, subjectUrl, videos, rawCaption, transcription } = $input.first().json;\n\n// ── STEP 1: Submit Lip-sync Job ──────────────────────────────────────────\n// We pass the subject (Photo or Video) directly to video_url\nconst submitResp = await this.helpers.httpRequest({\n  method: \"POST\",\n  url: \"https://queue.fal.run/fal-ai/sync-lipsync/v2/pro\",\n  headers: {\n    Authorization: `Key ${FAL_AI_API_KEY}`,\n    \"Content-Type\": \"application/json\",\n  },\n  body: {\n    video_url: subjectUrl,\n    audio_url: audioUrl,\n  },\n});\n\nconst statusUrl = submitResp.status_url;\nconst responseUrl = submitResp.response_url;\n\nif (!statusUrl) {\n  throw new Error(\"fal.ai did not return required queue URLs: \" + JSON.stringify(submitResp));\n}\n\n// ── STEP 2: Poll for completion ─────────────────────────────────────────\nlet aRollUrl = null;\nfor (let i = 0; i < 48; i++) { // Max 4 minutes (high quality takes longer)\n  await new Promise((r) => setTimeout(r, 5000));\n\n  const statusResp = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: statusUrl,\n    headers: { Authorization: `Key ${FAL_AI_API_KEY}` },\n  });\n\n  if (statusResp.status === \"COMPLETED\") {\n    const resultResp = await this.helpers.httpRequest({\n      method: \"GET\",\n      url: responseUrl,\n      headers: { Authorization: `Key ${FAL_AI_API_KEY}` },\n    });\n\n    // Check possible response paths\n    aRollUrl = resultResp.video?.url || resultResp.output?.video_url || resultResp.video_url || resultResp.url;\n    break;\n  }\n\n  if (statusResp.status === \"FAILED\") {\n    throw new Error(\"Sync Lipsync 2 Pro job failed: \" + JSON.stringify(statusResp));\n  }\n}\n\nif (!aRollUrl) {\n  throw new Error(\"Timeout waiting for Lip-sync result\");\n}\n\nreturn [{\n  json: {\n    chatId,\n    aRollUrl,\n    videos,\n    rawCaption,\n    transcription,\n  },\n}];\n"
+      },
+      "id": "generate-aroll",
+      "name": "Generate A-Roll (Pika Lip-Sync)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE: Analyze B-Roll & Create Edit Plan\n// Uses OpenRouter (GPT-4o vision) to analyze each b-roll video thumbnail,\n// then uses the transcription to plan when to insert each b-roll clip.\n\nconst OPENROUTER_API_KEY = \"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\";\nconst TELEGRAM_BOT_TOKEN = \"8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc\";\n\nconst { chatId, aRollUrl, videos, rawCaption, transcription } = $input.first().json;\n\n// ── Step 1: Describe each b-roll video (via first frame / thumbnail) ──────\nconst videoDescriptions = [];\nfor (const vid of videos) {\n  // Download first ~10KB of the video to use as context (or use URL directly)\n  // We'll ask the model to infer from URL metadata + description request\n  const descResp = await this.helpers.httpRequest({\n    method: \"POST\",\n    url: \"https://openrouter.ai/api/v1/chat/completions\",\n    headers: {\n      Authorization: `Bearer ${OPENROUTER_API_KEY}`,\n      \"Content-Type\": \"application/json\",\n      \"HTTP-Referer\": \"https://n8n.workflow\",\n      \"X-Title\": \"Video Editor Bot\",\n    },\n    body: JSON.stringify({\n      model: \"openai/gpt-4o\",\n      messages: [\n        {\n          role: \"user\",\n          content: [\n            {\n              type: \"text\",\n              text: `You are analyzing a b-roll video clip for a social media video editor.\nThe video URL is: ${vid.url}\nDuration: ${vid.duration || \"unknown\"} seconds\n\nBased on the URL and any context you can infer, describe:\n1. What this b-roll clip likely shows (visual content, mood, setting)\n2. What topics or keywords it best matches\n3. Ideal usage duration for a b-roll insert (2-5 seconds recommended)\n\nBe concise. Return JSON only:\n{\"description\": \"...\", \"keywords\": [\"...\"], \"suggestedDuration\": 3}`,\n            },\n          ],\n        },\n      ],\n      max_tokens: 300,\n    }),\n  });\n\n  let desc = { description: \"b-roll clip\", keywords: [], suggestedDuration: 3 };\n  try {\n    const raw = descResp.choices[0].message.content.replace(/```json|```/g, \"\").trim();\n    desc = JSON.parse(raw);\n  } catch (e) {\n    desc.description = descResp.choices[0]?.message?.content || \"b-roll clip\";\n  }\n\n  videoDescriptions.push({ ...vid, ...desc });\n}\n\n// ── Step 2: Create edit plan using transcription ───────────────────────────\nconst brollSummary = videoDescriptions\n  .map((v, i) => `Clip ${i + 1}: \"${v.description}\" | keywords: ${v.keywords.join(\", \")} | suggested: ${v.suggestedDuration}s`)\n  .join(\"\\n\");\n\nconst planResp = await this.helpers.httpRequest({\n  method: \"POST\",\n  url: \"https://openrouter.ai/api/v1/chat/completions\",\n  headers: {\n    Authorization: `Bearer ${OPENROUTER_API_KEY}`,\n    \"Content-Type\": \"application/json\",\n    \"HTTP-Referer\": \"https://n8n.workflow\",\n    \"X-Title\": \"Video Editor Bot\",\n  },\n  body: JSON.stringify({\n    model: \"openai/gpt-4o\",\n    messages: [\n      {\n        role: \"system\",\n        content: `You are a professional social media video editor. Your job is to plan b-roll inserts over an a-roll talking-head video.\nRules:\n- First 3 seconds: always show the speaker (a-roll) for hook\n- B-roll should match what the speaker is saying\n- Each b-roll insert: 2-5 seconds\n- Leave speaker visible during key emotional moments\n- Return ONLY valid JSON`,\n      },\n      {\n        role: \"user\",\n        content: `TRANSCRIPTION (a-roll):\n\"${transcription}\"\n\nAVAILABLE B-ROLL CLIPS:\n${brollSummary}\n\nCreate a b-roll edit plan. For each insert specify:\n- startTime (seconds into the video)\n- duration (seconds)\n- clipIndex (0-based index from the list above)\n- reason (why this clip fits here)\n\nReturn JSON array: [{\"startTime\": 5, \"duration\": 3, \"clipIndex\": 0, \"reason\": \"...\"}]`,\n      },\n    ],\n    max_tokens: 800,\n  }),\n});\n\nlet editPlan = [];\ntry {\n  const raw = planResp.choices[0].message.content.replace(/```json|```/g, \"\").trim();\n  editPlan = JSON.parse(raw);\n} catch (e) {\n  // fallback: insert clips evenly\n  const estimatedDuration = transcription.split(\" \").length / 2.5; // rough: 2.5 words/sec\n  editPlan = videoDescriptions.map((v, i) => ({\n    startTime: 4 + i * 6,\n    duration: v.suggestedDuration || 3,\n    clipIndex: i,\n    reason: \"evenly distributed fallback\",\n  }));\n}\n\nreturn [{\n  json: {\n    chatId,\n    aRollUrl,\n    videos: videoDescriptions,\n    rawCaption,\n    transcription,\n    editPlan,\n  },\n}];\n"
+      },
+      "id": "analyze-broll",
+      "name": "Analyze B-Roll & Edit Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE: Compose Final Video\n// Uses fal.ai ffmpeg-api (or video-merge) to composite b-roll over a-roll\n// according to the edit plan.\n\nconst FAL_AI_API_KEY = \"b58c67f2-94ec-4cfa-bfb7-158a15203b29:54446e43821d9169aba9d11b0f50f536\";\n\nconst { chatId, aRollUrl, videos, rawCaption, transcription, editPlan } = $input.first().json;\n\n// Build FFmpeg filter_complex command for overlaying b-roll at timestamps\n// fal.ai exposes an ffmpeg endpoint: fal-ai/ffmpeg-api\n\n// Construct inputs array: [0] = a-roll, [1..n] = b-roll clips\nconst inputs = [{ url: aRollUrl }];\nfor (const plan of editPlan) {\n  const clip = videos[plan.clipIndex];\n  if (clip) inputs.push({ url: clip.url });\n}\n\n// Build FFmpeg filter_complex for picture-in-picture / full replace\n// We'll do full-frame b-roll overlay (replaces a-roll during b-roll windows)\nlet filterParts = [];\nlet currentInput = \"[0:v]\";\nlet currentAudio = \"[0:a]\";\nlet brollIdx = 1;\n\n// Start with a-roll as base\nfilterParts.push(`[0:v]copy[base]`);\nlet prevOutput = \"[base]\";\n\nfor (const plan of editPlan) {\n  const clip = videos[plan.clipIndex];\n  if (!clip) continue;\n\n  const inputIdx = brollIdx;\n  brollIdx++;\n\n  // Scale b-roll to match a-roll resolution\n  filterParts.push(\n    `[${inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1[broll${inputIdx}]`\n  );\n\n  // Overlay b-roll over a-roll at timestamp window\n  const outLabel = `out${inputIdx}`;\n  filterParts.push(\n    `${prevOutput}[broll${inputIdx}]overlay=0:0:enable='between(t,${plan.startTime},${plan.startTime + plan.duration})'[${outLabel}]`\n  );\n\n  prevOutput = `[${outLabel}]`;\n}\n\nconst filterComplex = filterParts.join(\"; \");\n\n// Submit to fal.ai ffmpeg endpoint\nconst submitResp = await this.helpers.httpRequest({\n  method: \"POST\",\n  url: \"https://queue.fal.run/fal-ai/ffmpeg-api/compose\",\n  headers: {\n    Authorization: `Key ${FAL_AI_API_KEY}`,\n    \"Content-Type\": \"application/json\",\n  },\n  body: JSON.stringify({\n    inputs: inputs,\n    filter_complex: filterComplex,\n    output_options: {\n      format: \"mp4\",\n      video_codec: \"libx264\",\n      audio_codec: \"aac\",\n      map_video: prevOutput,\n      map_audio: \"[0:a]\",\n    },\n  }),\n});\n\nconst requestId = submitResp.request_id;\nif (!requestId) {\n  // Fallback: return the a-roll as final video if composition fails\n  console.log(\"FFmpeg compose failed, returning a-roll as final:\", JSON.stringify(submitResp));\n  return [{\n    json: {\n      chatId,\n      finalVideoUrl: aRollUrl,\n      rawCaption,\n      transcription,\n      editPlan,\n      compositionNote: \"B-roll composition unavailable; returning a-roll only\",\n    },\n  }];\n}\n\n// Poll for completion\nlet finalVideoUrl = null;\nfor (let i = 0; i < 36; i++) {\n  await new Promise((r) => setTimeout(r, 5000));\n\n  const statusResp = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: `https://queue.fal.run/fal-ai/ffmpeg-api/compose/requests/${requestId}/status`,\n    headers: { Authorization: `Key ${FAL_AI_API_KEY}` },\n  });\n\n  if (statusResp.status === \"COMPLETED\") {\n    const resultResp = await this.helpers.httpRequest({\n      method: \"GET\",\n      url: `https://queue.fal.run/fal-ai/ffmpeg-api/compose/requests/${requestId}`,\n      headers: { Authorization: `Key ${FAL_AI_API_KEY}` },\n    });\n    finalVideoUrl = resultResp.video?.url || resultResp.output_url || resultResp.url;\n    break;\n  }\n\n  if (statusResp.status === \"FAILED\") {\n    // Fallback to a-roll only\n    finalVideoUrl = aRollUrl;\n    break;\n  }\n}\n\nif (!finalVideoUrl) finalVideoUrl = aRollUrl; // timeout fallback\n\nreturn [{\n  json: {\n    chatId,\n    finalVideoUrl,\n    rawCaption,\n    transcription,\n    editPlan,\n  },\n}];\n"
+      },
+      "id": "compose-video",
+      "name": "Compose Final Video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE: Generate Caption & Send Final Video\n// Enriches the raw caption with AI, adds viral hashtags,\n// then sends the final composed video back to the user on Telegram.\n\nconst OPENROUTER_API_KEY = \"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\";\nconst TELEGRAM_BOT_TOKEN = \"8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc\";\n\nconst { chatId, finalVideoUrl, rawCaption, transcription, editPlan } = $input.first().json;\n\n// ── Step 1: Generate enriched caption ─────────────────────────────────────\nconst captionResp = await this.helpers.httpRequest({\n  method: \"POST\",\n  url: \"https://openrouter.ai/api/v1/chat/completions\",\n  headers: {\n    Authorization: `Bearer ${OPENROUTER_API_KEY}`,\n    \"Content-Type\": \"application/json\",\n    \"HTTP-Referer\": \"https://n8n.workflow\",\n    \"X-Title\": \"Video Caption Generator\",\n  },\n  body: JSON.stringify({\n    model: \"openai/gpt-4o\",\n    messages: [\n      {\n        role: \"system\",\n        content: `You are a viral social media content strategist specializing in short-form video (TikTok, Instagram Reels, YouTube Shorts).\nYour job: take a raw video caption idea + transcript and turn it into a hook-driven, engaging caption with viral hashtags.\n\nRules:\n- Start with a strong hook (first line = stop-the-scroll)\n- Keep it under 150 words\n- Natural, conversational tone\n- End with 5-8 highly relevant hashtags (mix of niche + broad)\n- Do not use emojis excessively (2-3 max)\n- Return ONLY the final caption text, no explanations`,\n      },\n      {\n        role: \"user\",\n        content: `Raw caption idea: \"${rawCaption}\"\n\nVideo transcription (what I say in the video):\n\"${transcription}\"\n\nWrite the viral caption with hashtags:`,\n      },\n    ],\n    max_tokens: 400,\n  }),\n});\n\nconst viralCaption = captionResp.choices[0].message.content.trim();\n\n// ── Step 2: Build edit plan summary ───────────────────────────────────────\nconst planSummary = editPlan\n  .map(\n    (p, i) =>\n      `• B-roll ${p.clipIndex + 1} at ${p.startTime}s for ${p.duration}s — ${p.reason}`\n  )\n  .join(\"\\n\");\n\n// ── Step 3: Send video to Telegram ────────────────────────────────────────\n// Send the video file\nawait this.helpers.httpRequest({\n  method: \"POST\",\n  url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo`,\n  body: {\n    chat_id: chatId,\n    video: finalVideoUrl,\n    caption: viralCaption,\n    parse_mode: \"Markdown\",\n    supports_streaming: true,\n  },\n  json: true,\n});\n\n// ── Step 4: Send edit plan details as a follow-up message ─────────────────\nawait this.helpers.httpRequest({\n  method: \"POST\",\n  url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n  body: {\n    chat_id: chatId,\n    text: `✅ *Video ready!*\\n\\n*Edit Plan Used:*\\n${planSummary}\\n\\n*Caption Generated:*\\n${viralCaption}`,\n    parse_mode: \"Markdown\",\n  },\n  json: true,\n});\n\nreturn [{\n  json: {\n    success: true,\n    chatId,\n    viralCaption,\n    finalVideoUrl,\n    editPlan,\n  },\n}];\n"
+      },
+      "id": "send-result",
+      "name": "Generate Caption & Send Video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// NODE: Error Handler\n// Catches any pipeline error and sends a friendly message to the user\n\nconst TELEGRAM_BOT_TOKEN = \"8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc\";\n\n// Try to extract chatId from the last known good data\nconst inputData = $input.first().json;\nconst chatId = inputData.chatId || null;\n\nconst errorMessage = $input.first().error?.message || \"Unknown error\";\n\nif (chatId) {\n  await this.helpers.httpRequest({\n    method: \"POST\",\n    url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,\n    body: {\n      chat_id: chatId,\n      text: `❌ Something went wrong during video generation.\\n\\nError: ${errorMessage}\\n\\nPlease try again by sending your voice note first.`,\n    },\n    json: true,\n  });\n}\n\nreturn [{ json: { handled: true, error: errorMessage } }];\n"
+      },
+      "id": "error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Session Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Session Manager": {
+      "main": [
+        [
+          {
+            "node": "Ready to Process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready to Process?": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Transcribe Audio": {
+      "main": [
+        [
+          {
+            "node": "Generate A-Roll (Pika Lip-Sync)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate A-Roll (Pika Lip-Sync)": {
+      "main": [
+        [
+          {
+            "node": "Analyze B-Roll & Edit Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze B-Roll & Edit Plan": {
+      "main": [
+        [
+          {
+            "node": "Compose Final Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Final Video": {
+      "main": [
+        [
+          {
+            "node": "Generate Caption & Send Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "versionId": "1"
+}
