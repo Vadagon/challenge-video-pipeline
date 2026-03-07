@@ -47,7 +47,7 @@ Return ONLY a valid JSON object:
                                     },
                                     {
                                         type: "video_url",
-                                        video_url: {
+                                        videoUrl: {
                                             url: vid.url
                                         }
                                     }

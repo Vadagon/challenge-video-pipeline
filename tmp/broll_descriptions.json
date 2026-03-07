@@ -2,8 +2,17 @@
   {
     "url": "http://tmpfiles.org/dl/27629105/test_video.mp4",
     "duration": 5,
-    "description": "b-roll clip",
-    "keywords": [],
+    "description": "A close-up, selfie-style shot of a young man with styled blond hair and a white t-shirt, speaking directly to the camera. The setting appears to be a convenience store, with a brightly lit 7-Eleven logo visible in the background. The mood is casual and conversational, as if he is vlogging or telling a personal story. The lighting is from an overhead fluorescent fixture.",
+    "keywords": [
+      "man talking",
+      "vlog",
+      "selfie video",
+      "convenience store",
+      "7-Eleven",
+      "casual",
+      "storytelling",
+      "close-up"
+    ],
     "suggestedDuration": 3
   }
 ]
