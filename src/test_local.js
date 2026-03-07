@@ -37,11 +37,19 @@ async function runLocalTest() {
     const assetsDir = path.join(__dirname, '../assets');
     const tmpDir = path.join(__dirname, '../tmp');
 
-    // Clean and recreate tmp folder for local test
-    if (fs.existsSync(tmpDir)) {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
+    // Parse step argument (e.g., node src/test_local.js 1)
+    const stepArg = process.argv.slice(2)[0];
+    const stepToRun = stepArg ? parseInt(stepArg, 10) : null;
+
+    // Clean and recreate tmp folder for local test ONLY if running all steps
+    if (stepToRun === null) {
+        if (fs.existsSync(tmpDir)) {
+            fs.rmSync(tmpDir, { recursive: true, force: true });
+        }
     }
-    fs.mkdirSync(tmpDir, { recursive: true });
+    if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+    }
 
     // Replace these with the actual files from your assets folder
     const audioFile = path.join(assetsDir, '2026-03-06 14.05.59.ogg');
@@ -55,68 +63,114 @@ async function runLocalTest() {
     const rawCaption = 'This is a test run locally without Telegram.';
 
     try {
-        // Use native Replicate API to upload local files safely and generate internal URLs
-        console.log('Uploading local files directly to Replicate cloud...');
-        const Replicate = require('replicate');
-        const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+        let audioUri, aRollSourceUri;
+        const urlsFile = path.join(tmpDir, 'uploaded_urls.json');
 
-        console.log('  -> Uploading voice note...');
-        const audioBuffer = await fs.promises.readFile(audioFile);
-        const audioUpload = await replicate.files.create(audioBuffer);
+        if (stepToRun === null || stepToRun === 0) {
+            console.log('\n[0/6] ☁️ Uploading local files to Replicate cloud...');
+            const Replicate = require('replicate');
+            const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
 
-        console.log('  -> Uploading A-Roll video...');
-        const aRollBuffer = await fs.promises.readFile(aRollSourceFile);
-        const aRollUpload = await replicate.files.create(aRollBuffer);
+            console.log('  -> Uploading voice note...');
+            const audioBuffer = await fs.promises.readFile(audioFile);
+            const audioUpload = await replicate.files.create(audioBuffer);
 
-        const audioUri = audioUpload.urls.get;
-        const aRollSourceUri = aRollUpload.urls.get;
+            console.log('  -> Uploading A-Roll video...');
+            const aRollBuffer = await fs.promises.readFile(aRollSourceFile);
+            const aRollUpload = await replicate.files.create(aRollBuffer);
 
-        console.log('Audio URL:', audioUri);
-        console.log('A-Roll Source URL:', aRollSourceUri);
+            audioUri = audioUpload.urls.get;
+            aRollSourceUri = aRollUpload.urls.get;
 
-        // 1. Transcribe Audio
-        console.log('\n[1/6] 🗣️ Transcribing audio...');
-        const transcription = await transcribeAudio(audioUri);
-        fs.writeFileSync(path.join(tmpDir, 'transcription.json'), JSON.stringify(transcription, null, 2));
-        console.log('Transcription saved to tmp/transcription.json');
+            fs.writeFileSync(urlsFile, JSON.stringify({ audioUri, aRollSourceUri }, null, 2));
+            console.log('Uploaded URLs saved to tmp/uploaded_urls.json');
+        } else if (fs.existsSync(urlsFile)) {
+            const urls = JSON.parse(fs.readFileSync(urlsFile, 'utf8'));
+            audioUri = urls.audioUri;
+            aRollSourceUri = urls.aRollSourceUri;
+        }
 
-        // 2. Generate A-Roll Video
-        console.log('\n[2/6] 🤖 Generating A-Roll talking head...');
-        const aRollUrl = await generateARoll(audioUri, aRollSourceUri);
-        fs.writeFileSync(path.join(tmpDir, 'aroll_url.txt'), aRollUrl);
-        console.log('A-Roll URL:', aRollUrl);
+        let transcription;
+        const transcribeFile = path.join(tmpDir, 'transcription.json');
 
-        // 3. Download A-Roll locally
-        console.log('\n[3/6] 📥 Downloading A-Roll locally...');
-        const { downloadFile } = require('./utils/download');
-        const aRollLocal = path.join(tmpDir, 'test_aroll.mp4');
-        await downloadFile(aRollUrl, aRollLocal);
-        console.log('A-Roll Saved ->', aRollLocal);
+        if (stepToRun === null || stepToRun === 1) {
+            console.log('\n[1/6] 🗣️ Transcribing audio...');
+            transcription = await transcribeAudio(audioUri);
+            fs.writeFileSync(transcribeFile, JSON.stringify(transcription, null, 2));
+            console.log('Transcription saved to tmp/transcription.json');
+        } else if (fs.existsSync(transcribeFile)) {
+            transcription = JSON.parse(fs.readFileSync(transcribeFile, 'utf8'));
+        }
 
-        // 4. Analyze B-Roll
-        console.log('\n[4/6] 🧠 Analyzing B-Rolls & Planning Edit...');
-        const brollClips = [{ url: "https://example.com/mock.mp4", duration: 5 }];
-        const { brolls, editPlan } = await analyzeBRoll(brollClips, transcription);
-        fs.writeFileSync(path.join(tmpDir, 'broll_analysis.json'), JSON.stringify({ brolls, editPlan }, null, 2));
-        console.log('B-roll Analysis & Edit Plan saved to tmp/broll_analysis.json');
+        let aRollUrl;
+        const aRollUrlFile = path.join(tmpDir, 'aroll_url.txt');
 
-        // Map the local file to the analyzed b-roll for composition
-        brolls[0].localPath = bRollFile;
+        if (stepToRun === null || stepToRun === 2) {
+            console.log('\n[2/6] 🤖 Generating A-Roll talking head...');
+            aRollUrl = await generateARoll(audioUri, aRollSourceUri);
+            fs.writeFileSync(aRollUrlFile, aRollUrl);
+            console.log('A-Roll URL:', aRollUrl);
+        } else if (fs.existsSync(aRollUrlFile)) {
+            aRollUrl = fs.readFileSync(aRollUrlFile, 'utf8');
+        }
 
-        // 5. Compose Video (Local FFmpeg)
-        console.log('\n[5/6] 🎬 Composing final video...');
-        const finalVideoSystemPath = await composeVideo(chatId, aRollLocal, brolls, editPlan);
-        const finalVideoPath = path.join(tmpDir, 'final_video.mp4');
-        fs.copyFileSync(finalVideoSystemPath, finalVideoPath);
-        console.log('Final Video Saved ->', finalVideoPath);
+        let aRollLocal = path.join(tmpDir, 'test_aroll.mp4');
 
-        // 6. Generate Caption
-        console.log('\n[6/6] ✍️ Generating viral caption...');
-        const viralCaption = await generateCaption(rawCaption, transcription);
-        fs.writeFileSync(path.join(tmpDir, 'caption.txt'), viralCaption);
-        console.log('\n--- FINAL CAPTION ---');
-        console.log(viralCaption);
-        console.log('\n✅ Local Test outputs have been completely saved to the /tmp folder!');
+        if (stepToRun === null || stepToRun === 3) {
+            console.log('\n[3/6] 📥 Downloading A-Roll locally...');
+            const { downloadFile } = require('./utils/download');
+            await downloadFile(aRollUrl, aRollLocal);
+            console.log('A-Roll Saved ->', aRollLocal);
+        }
+
+        let brolls, editPlan;
+        const brollAnalysisFile = path.join(tmpDir, 'broll_analysis.json');
+
+        if (stepToRun === null || stepToRun === 4) {
+            console.log('\n[4/6] 🧠 Analyzing B-Rolls & Planning Edit...');
+            const brollClips = [{ url: "https://example.com/mock.mp4", duration: 5 }];
+            const brollRes = await analyzeBRoll(brollClips, transcription);
+            brolls = brollRes.brolls;
+            editPlan = brollRes.editPlan;
+            fs.writeFileSync(brollAnalysisFile, JSON.stringify({ brolls, editPlan }, null, 2));
+            console.log('B-roll Analysis & Edit Plan saved to tmp/broll_analysis.json');
+        } else if (fs.existsSync(brollAnalysisFile)) {
+            const analysis = JSON.parse(fs.readFileSync(brollAnalysisFile, 'utf8'));
+            brolls = analysis.brolls;
+            editPlan = analysis.editPlan;
+        }
+
+        if (brolls && brolls.length > 0) {
+            brolls[0].localPath = bRollFile;
+        }
+
+        let finalVideoPath = path.join(tmpDir, 'final_video.mp4');
+
+        if (stepToRun === null || stepToRun === 5) {
+            console.log('\n[5/6] 🎬 Composing final video...');
+            const finalVideoSystemPath = await composeVideo(chatId, aRollLocal, brolls, editPlan);
+            fs.copyFileSync(finalVideoSystemPath, finalVideoPath);
+            console.log('Final Video Saved ->', finalVideoPath);
+        }
+
+        let viralCaption;
+        const captionFile = path.join(tmpDir, 'caption.txt');
+
+        if (stepToRun === null || stepToRun === 6) {
+            console.log('\n[6/6] ✍️ Generating viral caption...');
+            viralCaption = await generateCaption(rawCaption, transcription);
+            fs.writeFileSync(captionFile, viralCaption);
+            console.log('\n--- FINAL CAPTION ---');
+            console.log(viralCaption);
+        } else if (fs.existsSync(captionFile)) {
+            viralCaption = fs.readFileSync(captionFile, 'utf8');
+        }
+
+        if (stepToRun === null) {
+            console.log('\n✅ Local Test outputs have been completely saved to the /tmp folder!');
+        } else {
+            console.log(`\n✅ Step ${stepToRun} completed successfully.`);
+        }
 
     } catch (err) {
         console.error('\n❌ PIpeline Test Failed:', err);
