@@ -99,10 +99,11 @@ Return ONLY a valid JSON object:
 async function planEdit(videoDescriptions, transcription) {
     const openrouter = await getOpenRouterClient();
     const brollSummary = videoDescriptions
-        .map((v, i) => `Clip ${i}: "${v.description}" | keywords: ${v.keywords.join(", ")} | suggested: ${v.suggestedDuration}s`)
+        .map((v, i) => `Clip ${i}: "${v.description}" | keywords: ${v.keywords.join(", ")} | available duration: ${v.duration?.toFixed(1) || '?'}s`)
         .join("\n");
 
     const transcriptionText = typeof transcription === 'string' ? transcription : transcription.text;
+    const totalDuration = typeof transcription === 'string' ? '?' : (transcription.segments?.at(-1)?.end ?? 5).toFixed(1);
 
     let editPlan = [];
     try {
@@ -119,14 +120,15 @@ async function planEdit(videoDescriptions, transcription) {
 Rules:
 - Prefer keeping the first 3 seconds as a-roll (speaker on camera), but for short clips under 5s you may start b-roll at 1s
 - B-roll clips should visually match or complement the speech topic
-- Each insert should be 2-5 seconds long
+- Each insert MUST be between 2-5 seconds long
+- IMPORTANT: An insert duration CANNOT exceed the available duration of the clip
 - Always return AT LEAST ONE b-roll insert — never return an empty array
 - If the transcription is very short, insert a single b-roll clip early (e.g. startTime: 1 or 2)
 - Return ONLY a raw JSON array with no markdown, no code fences`
                         },
                         {
                             role: "user",
-                            content: `TRANSCRIPTION (total duration ≈ ${typeof transcription === 'string' ? '?' : ((transcription.segments?.at(-1)?.end ?? 5).toFixed(1))}s):
+                            content: `TRANSCRIPTION (total duration ≈ ${totalDuration}s):
 "${transcriptionText}"
 
 AVAILABLE B-ROLL CLIPS:

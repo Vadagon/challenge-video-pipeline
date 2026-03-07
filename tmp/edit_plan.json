@@ -1,8 +1,26 @@
 [
   {
-    "startTime": 1,
-    "duration": 2.6,
+    "startTime": 4,
+    "duration": 5,
+    "clipIndex": 3,
+    "reason": "The speaker says 'I'm working in a cafe right now, working on a new feature', and this clip perfectly illustrates someone coding on a laptop in an outdoor cafe setting."
+  },
+  {
+    "startTime": 11,
+    "duration": 5,
     "clipIndex": 0,
-    "reason": "Since the a-roll is a very short test phrase, this dynamic b-roll is added early to make the clip more visually engaging and hook the viewer."
+    "reason": "To illustrate the phrase 'your sample video like where you are', this selfie-style clip of a person walking through an airport serves as a perfect example of a user-provided 'sample video'."
+  },
+  {
+    "startTime": 16,
+    "duration": 3.2,
+    "clipIndex": 2,
+    "reason": "As the speaker mentions 'generates, makes lip sync video', this clip shows the technical side, with code on one side and a video playing on the other, visualizing the generation process."
+  },
+  {
+    "startTime": 24,
+    "duration": 5,
+    "clipIndex": 1,
+    "reason": "The speaker says 'you have like a b-roll, filled with b-roll, cool video', and this vibrant, exciting street food clip is a prime example of engaging b-roll content."
   }
 ]

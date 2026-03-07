@@ -7,6 +7,7 @@ const { generateARoll } = require('./pipeline/generateAroll');
 const { analyzeBRoll } = require('./pipeline/analyzeBroll');
 const { composeVideo } = require('./pipeline/composeVideo');
 const { generateCaption } = require('./pipeline/generateCaption');
+const { getDuration } = require('./utils/duration');
 
 // Helper to simulate URL upload if needed, but Replicate accepts data URIs
 // or we can use a service like ngrok if we had a local server.
@@ -141,15 +142,23 @@ async function runLocalTest() {
 
             console.log('  -> Uploading B-Roll videos...');
             for (let i = 0; i < rawBRollFiles.length; i++) {
-                const uri = await fileToPublicUrl(getBRollPath(i));
-                bRollUris.push(uri);
+                const lp = getBRollPath(i);
+                const uri = await fileToPublicUrl(lp);
+                bRollUris.push({ url: uri, duration: getDuration(lp) });
             }
 
-            fs.writeFileSync(urlsFile, JSON.stringify({ audioUri, aRollSourceUri, bRollUris }, null, 2));
+            const payload = {
+                audioUri,
+                audioDuration: getDuration(audioFile),
+                aRollSourceUri,
+                aRollSourceDuration: getDuration(aRollSourceFile),
+                bRollUris
+            };
+            fs.writeFileSync(urlsFile, JSON.stringify(payload, null, 2));
             console.log('Uploaded URLs saved to tmp/uploaded_urls.json');
             console.log('  Audio:', audioUri);
             console.log('  A-Roll:', aRollSourceUri);
-            console.log('  B-Rolls:', bRollUris);
+            console.log('  B-Rolls:', bRollUris.map(b => b.url));
         } else if (fs.existsSync(urlsFile)) {
             const urls = JSON.parse(fs.readFileSync(urlsFile, 'utf8'));
             audioUri = urls.audioUri;
@@ -196,7 +205,7 @@ async function runLocalTest() {
         if (stepToRun === null || stepToRun === 4) {
             console.log('\n[4/7] 👁️ Describing B-Roll clips...');
             const { describeBRolls } = require('./pipeline/analyzeBroll');
-            const brollClips = bRollUris.map(uri => ({ url: uri, duration: 5 }));
+            const brollClips = bRollUris; // Now already includes objects with {url, duration}
             brolls = await describeBRolls(brollClips);
             fs.writeFileSync(brollDescriptionFile, JSON.stringify(brolls, null, 2));
             console.log(`B-roll Descriptions (${brolls.length}) saved to tmp/broll_descriptions.json`);

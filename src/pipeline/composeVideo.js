@@ -5,7 +5,12 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
     if (!aRollPath) throw new Error("Missing A-Roll local path for composition");
     if (!fs.existsSync(aRollPath)) throw new Error("A-Roll local file not found: " + aRollPath);
 
-    // Step 1: Build Input List
+    // Step 1: Detect Durations
+    const { getDuration } = require('../utils/duration');
+    const aRollDuration = getDuration(aRollPath);
+    console.log(`[Compose] A-Roll Duration: ${aRollDuration.toFixed(2)}s`);
+
+    // Step 2: Build Input List & Sanitize Plan
     const inputs = [`-i "${aRollPath}"`];
     const planWithInputs = [];
 
@@ -14,11 +19,23 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
         if (clip && clip.localPath && fs.existsSync(clip.localPath)) {
             const inputIdx = inputs.length;
             inputs.push(`-i "${clip.localPath}"`);
-            planWithInputs.push({ ...plan, inputIdx });
+
+            // Safety Check: Cap duration to the actual B-roll file length
+            const actualBrollDuration = getDuration(clip.localPath);
+            let sanitizedDuration = Math.min(plan.duration, actualBrollDuration);
+
+            // Safety Check: Ensure no overlay goes past A-roll end
+            if (plan.startTime + sanitizedDuration > aRollDuration) {
+                sanitizedDuration = Math.max(0, aRollDuration - plan.startTime);
+            }
+
+            if (sanitizedDuration > 0) {
+                planWithInputs.push({ ...plan, inputIdx, duration: sanitizedDuration });
+            }
         }
     }
 
-    // Step 2: Build Filter Complex
+    // Step 3: Build Filter Complex
     let filterParts = [];
     let prevOutput = "[0:v]";
     let brollLayerIdx = 1;
@@ -52,7 +69,7 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
         "-c:v libx264 -preset superfast -crf 23",
         "-c:a aac -b:a 128k",
         "-movflags +faststart",
-        `-t 60`, // Truncate to maximum 60 seconds
+        `-t ${aRollDuration}`, // Truncate to exact A-roll duration
         `"${outputFilePath}"`
     ].filter(Boolean).join(" ");
 

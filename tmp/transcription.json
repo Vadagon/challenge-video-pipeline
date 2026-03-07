@@ -1,10 +1,15 @@
 {
-  "text": "Тести, тести, тести. Хелло, тести.",
+  "text": "Hello, it's a test, test. I'm working in a cafe right now, working on a new feature called video generation tool that uses your voice only, your sample video like where you are and it generates, makes lip sync video of you talking on the camera with the sample video you gave.  Yeah, and in the end you have like a b-roll, filled with b-roll, cool video.",
   "segments": [
     {
-      "end": 3.575,
-      "start": 0.009,
-      "text": " Тести, тести, тести. Хелло, тести."
+      "end": 28.029,
+      "start": 0.759,
+      "text": " Hello, it's a test, test. I'm working in a cafe right now, working on a new feature called video generation tool that uses your voice only, your sample video like where you are and it generates, makes lip sync video of you talking on the camera with the sample video you gave."
+    },
+    {
+      "end": 36.049,
+      "start": 29.036,
+      "text": " Yeah, and in the end you have like a b-roll, filled with b-roll, cool video."
     }
   ]
 }

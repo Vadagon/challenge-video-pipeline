@@ -1,18 +1,67 @@
 [
   {
-    "url": "http://tmpfiles.org/dl/27630781/img_0520.mp4",
-    "duration": 5,
-    "description": "A vertical point-of-view video that starts on a city sidewalk next to a red pole covered in stickers. The camera pans left and zooms in on a bustling outdoor street food stall or cafe. People are sitting at tables under umbrellas, and several motorbikes are parked in front. The shot focuses on a bright, illuminated yellow sign with red text that reads 'BÁNH MÌ'. The overall mood is one of exciting discovery in an urban travel setting.",
+    "url": "http://tmpfiles.org/dl/27632708/img_0513.mp4",
+    "duration": 6.639002,
+    "description": "A low-angle, selfie-style shot of a young man with short, textured blond hair and blue eyes walking through an airport terminal or a large public building. He wears a black t-shirt and has a bag strap over his shoulder. He looks directly at the camera with a neutral, slightly tired expression as he moves. The background shows a white tiled ceiling with bright, recessed lights, giving the scene a typical, impersonal travel hub feel.",
     "keywords": [
-      "street food",
-      "Vietnam",
-      "bánh mì",
-      "city life",
+      "man",
+      "walking",
+      "airport",
       "travel",
-      "sidewalk cafe",
-      "food stall",
-      "urban",
-      "discovery"
+      "selfie",
+      "terminal",
+      "vlog style",
+      "candid",
+      "on the go"
+    ],
+    "suggestedDuration": 3
+  },
+  {
+    "url": "http://tmpfiles.org/dl/27632714/img_0520.mp4",
+    "duration": 8.166667,
+    "description": "A point-of-view, handheld shot pans and zooms down a bustling city street in what appears to be Vietnam. The camera focuses on a lively outdoor food stall where patrons are seated at tables under umbrellas. The shot zeroes in on a glowing yellow neon sign that reads 'BÁNH MÌ', prompting an excited exclamation from the person filming. The mood is one of casual travel and joyful foodie discovery.",
+    "keywords": [
+      "Banh Mi",
+      "Vietnam",
+      "street food",
+      "travel",
+      "city life",
+      "foodie",
+      "neon sign"
+    ],
+    "suggestedDuration": 3
+  },
+  {
+    "url": "http://tmpfiles.org/dl/27632716/img_0559.mp4",
+    "duration": 3.156009,
+    "description": "A point-of-view shot of a person's left hand hovering over a laptop keyboard with both Latin and Cyrillic characters. The laptop screen is on, displaying a coding interface on the left side and a video player on the right. The video playing shows a woman in a softly lit, atmospheric setting. The overall mood is focused and productive, related to tech, development, or creative work.",
+    "keywords": [
+      "coding",
+      "programming",
+      "laptop",
+      "working",
+      "developer",
+      "tech",
+      "keyboard",
+      "video editing",
+      "remote work",
+      "cyrillic"
+    ],
+    "suggestedDuration": 3
+  },
+  {
+    "url": "http://tmpfiles.org/dl/27632718/img_0560.mp4",
+    "duration": 11.8,
+    "description": "A first-person point-of-view shot of a person working on a laptop in an outdoor setting. The screen displays lines of code and a user interface. The camera then performs a quick, sweeping pan to the right, revealing a vibrant, green environment with a wooden trellis covered in vines, and blurred city lights in the background, conveying a productive, 'work from anywhere' atmosphere.",
+    "keywords": [
+      "coding",
+      "developer",
+      "work from anywhere",
+      "laptop",
+      "digital nomad",
+      "programming",
+      "tech",
+      "outdoor cafe"
     ],
     "suggestedDuration": 3
   }
