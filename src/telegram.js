@@ -20,6 +20,9 @@ async function getFileUrl(fileId) {
     try {
         const token = process.env.TELEGRAM_BOT_TOKEN;
         const resp = await axios.get(`${getApiBase()}/getFile?file_id=${fileId}`);
+        if (!resp.data || !resp.data.ok || !resp.data.result) {
+            throw new Error(`Telegram API Error: ${JSON.stringify(resp.data)}`);
+        }
         const filePath = resp.data.result.file_path;
         return `https://api.telegram.org/file/bot${token}/${filePath}`;
     } catch (error) {

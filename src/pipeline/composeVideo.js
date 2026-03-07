@@ -1,8 +1,12 @@
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 const fs = require('fs');
+
+const execAsync = promisify(exec);
 
 /**
  * Step 7: Compose the final video by overlaying B-roll clips onto the A-roll.
+ * Target format: 1080x1920 (Instagram Reels, YouTube Shorts, TikTok).
  *
  * By the time this runs, all B-roll clips (including photos pre-rendered in
  * step 5) are plain MP4 video files. No special photo handling needed here.
@@ -12,14 +16,20 @@ const fs = require('fs');
  *   — Any letterbox/pillarbox area is filled by a blurred copy of the same clip.
  *   — No forced zoom on videos (photos already have Ken Burns baked in).
  */
-function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
+async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
     if (!aRollPath) throw new Error("Missing A-Roll local path for composition");
     if (!fs.existsSync(aRollPath)) throw new Error("A-Roll local file not found: " + aRollPath);
 
-    const { getDuration, getVideoSize } = require('../utils/duration');
+    const { getDuration } = require('../utils/duration');
     const aRollDuration = getDuration(aRollPath);
-    const { width: CW, height: CH } = getVideoSize(aRollPath);
-    console.log(`[Compose] A-Roll: ${aRollDuration.toFixed(2)}s @ ${CW}x${CH}`);
+    // Explicitly target Instagram format.
+    const CW = 1080;
+    const CH = 1920;
+    console.log(`[Compose] A-Roll: ${aRollDuration.toFixed(2)}s. Target: ${CW}x${CH}`);
+
+    if (aRollDuration <= 0) {
+        throw new Error("Invalid A-Roll duration detected (0s).");
+    }
 
     // Build FFmpeg input list & sanitize each planned overlay
     const inputs = [`-i "${aRollPath}"`];
@@ -27,7 +37,11 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
 
     for (const plan of editPlan) {
         const clip = brollsWithLocalPaths[plan.clipIndex];
-        if (clip && clip.localPath && fs.existsSync(clip.localPath)) {
+        if (clip && clip.localPath) {
+            if (!fs.existsSync(clip.localPath)) {
+                console.warn(`[Compose] Warning: Planned B-roll clip missing on disk: ${clip.localPath}`);
+                continue;
+            }
             const inputIdx = inputs.length;
 
             // Offset the input so the clip stream starts at its planned timestamp
@@ -48,9 +62,23 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
         }
     }
 
+    const outputFilePath = `/tmp/final_${chatId || Date.now()}.mp4`;
+
+    // Fast-path: If no valid B-rolls to overlay, just scale the A-roll directly and copy audio
+    if (planWithInputs.length === 0) {
+        console.warn("[Compose] No valid B-roll inserts found. Generating A-Roll only.");
+        const cmd = `ffmpeg -y -i "${aRollPath}" -vf "scale=${CW}:${CH}:force_original_aspect_ratio=increase,crop=${CW}:${CH}" -c:v libx264 -preset veryfast -crf 23 -c:a copy -t ${aRollDuration} "${outputFilePath}"`;
+        await execAsync(cmd);
+        return outputFilePath;
+    }
+
     // Build filter_complex: each clip → fit+blur composite → overlay on timeline
     let filterParts = [];
-    let prevOutput = "[0:v]";
+
+    // Scale the base A-Roll to exact 1080x1920 first
+    filterParts.push(`[0:v]scale=${CW}:${CH}:force_original_aspect_ratio=increase,crop=${CW}:${CH}[base]`);
+
+    let prevOutput = "[base]";
     let layerIdx = 1;
 
     for (const plan of planWithInputs) {
@@ -64,12 +92,12 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
         // 1. Split clip stream into two copies
         filterParts.push(`[${plan.inputIdx}:v]split=2[${spLabel}a][${spLabel}b]`);
 
-        // 2. Background: scale-up to cover canvas + crop + blur
+        // 2. Background: scale-up to cover canvas + crop + lighter blur for performance
         filterParts.push(
             `[${spLabel}a]` +
             `scale=${CW}:${CH}:force_original_aspect_ratio=increase,` +
             `crop=${CW}:${CH},` +
-            `boxblur=25:4` +
+            `boxblur=15:2` + // Optimization: Fast blur
             `[${bgLabel}]`
         );
 
@@ -100,27 +128,26 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
     }
 
     const filterComplex = filterParts.join("; ");
-    const outputFilePath = `/tmp/final_${chatId || Date.now()}.mp4`;
 
     const ffmpegCommand = [
         "ffmpeg -y",
         inputs.join(" "),
-        filterComplex ? `-filter_complex "${filterComplex}"` : "",
-        `-map "${filterComplex ? prevOutput : '0:v'}"`,
-        "-map 0:a",
-        "-c:v libx264 -preset superfast -crf 23",
+        `-filter_complex "${filterComplex}"`,
+        `-map "${prevOutput}"`,
+        "-map 0:a", // Use audio from A-Roll (input 0)
+        "-c:v libx264 -preset veryfast -crf 23 -profile:v baseline -level 3.0", // Performance & Mobile decode opt
         "-c:a aac -b:a 128k",
-        "-movflags +faststart",
+        "-movflags +faststart", // Crucial for immediate web playback
         `-t ${aRollDuration}`,
         `"${outputFilePath}"`
-    ].filter(Boolean).join(" ");
+    ].join(" ");
 
-    console.log(`[Compose] Running FFmpeg...`);
+    console.log(`[Compose] Running FFmpeg asynchronously...`);
 
     try {
-        execSync(ffmpegCommand, { timeout: 300000, stdio: 'pipe' });
+        await execAsync(ffmpegCommand, { timeout: 300000 });
     } catch (err) {
-        throw new Error(`FFmpeg execution failed: ${err.stderr?.toString() || err.message}`);
+        throw new Error(`FFmpeg execution failed: ${err.stderr || err.message}`);
     }
 
     if (!fs.existsSync(outputFilePath)) {

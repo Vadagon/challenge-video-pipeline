@@ -46,47 +46,87 @@ async function runPipeline({ chatId, audioUrl, videos, rawCaption }) {
     try {
         // 1. Transcribe Audio
         await telegram.sendMessage(chatId, "🗣️ Transcribing audio...");
-        const transcription = await transcribeAudio(audioUrl);
+        let transcription;
+        try {
+            transcription = await transcribeAudio(audioUrl);
+        } catch (e) {
+            throw new Error(`Audio transcription failed: ${e.message}`);
+        }
 
         // 2. Generate A-Roll Video
         await telegram.sendMessage(chatId, "🤖 Generating A-Roll talking head...");
+        let aRollUrl;
         const aRollSourceUrl = videos[0].url;
-        const aRollUrl = await generateARoll(audioUrl, aRollSourceUrl);
+        try {
+            aRollUrl = await generateARoll(audioUrl, aRollSourceUrl);
+        } catch (e) {
+            throw new Error(`A-Roll generation (Lip-sync) failed: ${e.message}`);
+        }
 
         // 3. Download A-Roll locally
         await telegram.sendMessage(chatId, "📥 Downloading assets locally...");
         const aRollLocal = `/tmp/aroll_${chatId}_${Date.now()}.mp4`;
-        await downloadFile(aRollUrl, aRollLocal);
-        downloadedPaths.push(aRollLocal);
+        try {
+            await downloadFile(aRollUrl, aRollLocal);
+            downloadedPaths.push(aRollLocal);
+        } catch (e) {
+            throw new Error(`Failed to download A-Roll: ${e.message}`);
+        }
 
         // 4. Analyze B-Roll
         await telegram.sendMessage(chatId, "🧠 Analyzing B-Rolls & Planning Edit...");
         const brollClips = videos.slice(1);
-        const { brolls, editPlan } = await analyzeBRoll(brollClips, transcription);
+        let brolls, editPlan;
+        try {
+            const analysis = await analyzeBRoll(brollClips, transcription);
+            brolls = analysis.brolls;
+            editPlan = analysis.editPlan;
+        } catch (e) {
+            console.error("B-Roll analysis warning:", e);
+            throw new Error("Failed to analyze B-Roll clips or plan the edit.");
+        }
 
         // Download B-Rolls locally
         for (let i = 0; i < brolls.length; i++) {
             const broll = brolls[i];
             const bLocal = `/tmp/broll_${chatId}_${i}_${Date.now()}.mp4`;
-            await downloadFile(broll.url, bLocal);
-            downloadedPaths.push(bLocal);
-            broll.localPath = bLocal; // Set localPath for composeVideo
+            try {
+                await downloadFile(broll.url, bLocal);
+                downloadedPaths.push(bLocal);
+                broll.localPath = bLocal; // Set localPath for composeVideo
+            } catch (e) {
+                console.error(`Failed to download B-Roll ${i}:`, e.message);
+                // Continue despite failure, composeVideo handles missing localPaths safely
+            }
         }
 
         // 5. Compose Video (Local FFmpeg)
         await telegram.sendMessage(chatId, "🎬 Composing final video...");
-        const finalVideoPath = await composeVideo(chatId, aRollLocal, brolls, editPlan);
-        downloadedPaths.push(finalVideoPath);
+        let finalVideoPath;
+        try {
+            finalVideoPath = await composeVideo(chatId, aRollLocal, brolls, editPlan);
+            downloadedPaths.push(finalVideoPath);
+        } catch (e) {
+            throw new Error(`Video composition failed: ${e.message}`);
+        }
 
         // 6. Generate Caption
         await telegram.sendMessage(chatId, "✍️ Generating viral caption...");
-        const viralCaption = await generateCaption(rawCaption, transcription);
+        let viralCaption = rawCaption; // Fallback
+        try {
+            viralCaption = await generateCaption(rawCaption, transcription);
+        } catch (e) {
+            console.warn("Caption generation failed, using raw caption:", e.message);
+        }
 
         // 7. Send Result to User
         await telegram.sendMessage(chatId, "🚀 Uploading your masterpiece!");
-        await telegram.sendVideo(chatId, finalVideoPath, viralCaption);
-
-        await telegram.sendMessage(chatId, "✅ Video sent! Use /start (or send a new voice note) to make another.");
+        try {
+            await telegram.sendVideo(chatId, finalVideoPath, viralCaption);
+            await telegram.sendMessage(chatId, "✅ Video sent! Use /start (or send a new voice note) to make another.");
+        } catch (e) {
+            throw new Error("Final video was generated but failed to upload to Telegram.");
+        }
 
     } finally {
         // Cleanup temporary files

@@ -6,7 +6,7 @@ async function cleanupFiles(filePaths) {
         if (!filePath) continue;
         try {
             if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
+                await fs.promises.unlink(filePath);
             }
         } catch (err) {
             console.error(`Failed to delete file ${filePath}:`, err.message);

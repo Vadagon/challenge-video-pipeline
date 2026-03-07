@@ -1,6 +1,9 @@
-const { execSync } = require('child_process');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 const path = require('path');
 const fs = require('fs');
+
+const execAsync = promisify(exec);
 
 /**
  * Step 5: Pre-render photo B-rolls as video clips with Ken Burns animation.
@@ -94,7 +97,7 @@ async function renderPhotoBrolls(brolls, outDir, canvas) {
         ].join(' ');
 
         try {
-            execSync(cmd, { timeout: 120000, stdio: 'pipe' });
+            await execAsync(cmd, { timeout: 120000 });
             console.log(`[RenderPhoto] ✅ Done → ${outputPath}`);
 
             // Swap type to 'video' so composeVideo treats it as a plain clip
@@ -104,7 +107,7 @@ async function renderPhotoBrolls(brolls, outDir, canvas) {
         } catch (err) {
             console.error(
                 `[RenderPhoto] ❌ Failed for photo ${i}:`,
-                err.stderr?.toString().slice(-500) || err.message
+                err.stderr ? err.stderr.slice(-500) : err.message
             );
         }
     }
