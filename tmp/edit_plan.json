@@ -1,26 +1,26 @@
 [
   {
-    "startTime": 3,
+    "startTime": 4,
     "duration": 5,
     "clipIndex": 3,
-    "reason": "Visually matches the line 'I'm working in a cafe right now' by showing a person working on a laptop with code in a cafe setting."
+    "reason": "Visually matches the dialogue 'I'm working in a cafe right now' by showing a first-person view of working on a laptop in a cafe setting."
   },
   {
-    "startTime": 8,
+    "startTime": 10,
     "duration": 5,
     "clipIndex": 2,
-    "reason": "Directly illustrates 'working on a new feature called video generation tool' by showing a POV of a laptop with code and an AI video tool interface."
+    "reason": "Perfectly illustrates the 'new feature called video generation tool' by showing a laptop screen with code and an AI tool interface."
   },
   {
-    "startTime": 14,
+    "startTime": 18,
     "duration": 4,
     "clipIndex": 0,
-    "reason": "Provides a perfect example for the line 'your sample video like where you are' by showing a selfie-style walking video."
+    "reason": "Represents the 'lip sync video of you talking on the camera' that the tool generates, as it shows a person looking directly into the camera in a vlog style."
   },
   {
-    "startTime": 22,
+    "startTime": 25,
     "duration": 4,
     "clipIndex": 1,
-    "reason": "Shows a classic travel b-roll clip of a city street and cafe, which perfectly illustrates the result of a video 'filled with b-roll'."
+    "reason": "This travel-style clip of a city street serves as a strong example for the line 'in the end you have like a b-roll, filled with b-roll, cool video'."
   }
 ]
