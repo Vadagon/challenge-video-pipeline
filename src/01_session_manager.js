@@ -2,7 +2,8 @@
 // Receives Telegram updates from the n8n Telegram Trigger node and tracks
 // 2-message session state per chat.
 // Message 1: Voice audio only
-// Message 2: Caption + Subject (Photo/Video) + B-Roll Video(s) → triggers pipeline
+// Message 2: Caption + One or more Video(s) → triggers pipeline
+// (First video = A-Roll, Others = B-Roll)
 
 const TELEGRAM_BOT_TOKEN = "8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc";
 
@@ -49,7 +50,7 @@ if (message.voice && (session.step === 0 || session.step === 2)) {
     url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
     body: {
       chat_id: chatId,
-      text: "🎙️ Got your voice note!\n\nNow send a single message (or an album) with:\n📝 Caption (as message text)\n👤 A video of you (or a photo)\n🎬 One or more clips (b-roll)",
+      text: "🎙️ Got your voice note!\n\nNow send a single message (or an album) with:\n📝 Caption (as message text)\n🎬 One main video (A-roll)\n📸 One or more clips (B-roll)",
     },
     json: true,
   });
@@ -57,10 +58,9 @@ if (message.voice && (session.step === 0 || session.step === 2)) {
   return [{ json: { skip: true, reason: "waiting for step 2" } }];
 }
 
-// ── STEP 2: Accumulate Caption + Subject + Videos ─────────────────────────
+// ── STEP 2: Accumulate Caption + Videos ──────────────────────────────────
 if (session.step === 1) {
   const currentCaption = message.caption || message.text || "";
-  const photo = message.photo;
   const video = message.video;
 
   let updated = false;
@@ -71,29 +71,8 @@ if (session.step === 1) {
     updated = true;
   }
 
-  // 2. Accumulate Subject (The first person-centric media we get)
-  // If we get multiple videos, the first one is the subject, others are b-roll
-  if (!session.subjectUrl) {
-    if (photo) {
-      const bestPhoto = photo[photo.length - 1];
-      const photoInfoResp = await this.helpers.httpRequest({
-        method: "GET",
-        url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${bestPhoto.file_id}`,
-      });
-      session.subjectUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${photoInfoResp.result.file_path}`;
-      session.subjectType = "image";
-      updated = true;
-    } else if (video) {
-      const videoInfoResp = await this.helpers.httpRequest({
-        method: "GET",
-        url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${video.file_id}`,
-      });
-      session.subjectUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${videoInfoResp.result.file_path}`;
-      session.subjectType = "video";
-      updated = true;
-    }
-  } else if (video) {
-    // 3. Accumulate B-Roll Video
+  // 2. Accumulate Video
+  if (video) {
     const videoInfoResp = await this.helpers.httpRequest({
       method: "GET",
       url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getFile?file_id=${video.file_id}`,
@@ -101,6 +80,7 @@ if (session.step === 1) {
     const videoUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${videoInfoResp.result.file_path}`;
 
     if (!session.videos) session.videos = [];
+    // Avoid duplicates by fileId
     if (!session.videos.find(v => v.fileId === video.file_id)) {
       session.videos.push({ fileId: video.file_id, url: videoUrl, duration: video.duration });
       updated = true;
@@ -111,11 +91,12 @@ if (session.step === 1) {
   staticData.sessions[chatId] = session;
 
   // 4. Check if we have everything needed to proceed
+  // We need a caption and at least 2 videos (1 A-roll + at least 1 B-roll)
   const hasCaption = !!session.caption;
-  const hasSubject = !!session.subjectUrl;
-  const hasVideos = session.videos && session.videos.length > 0;
+  const videoCount = (session.videos || []).length;
+  const hasEnoughVideos = videoCount >= 2;
 
-  if (hasCaption && hasSubject && hasVideos) {
+  if (hasCaption && hasEnoughVideos) {
     // TRIGGER PIPELINE
     session.step = 2; // Move to "processing" state
     staticData.sessions[chatId] = session;
@@ -125,7 +106,7 @@ if (session.step === 1) {
       url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       body: {
         chat_id: chatId,
-        text: "⚙️ All assets received! Starting video generation pipeline...\n\nThis may take a few minutes ☕",
+        text: `⚙️ All assets received (${videoCount} videos)! Starting generation pipeline...\n\nThis may take a few minutes ☕`,
       },
       json: true,
     });
@@ -135,9 +116,7 @@ if (session.step === 1) {
         skip: false,
         chatId,
         audioUrl: session.audioUrl,
-        subjectUrl: session.subjectUrl,
-        subjectType: session.subjectType,
-        videos: session.videos,
+        videos: session.videos, // First is A-roll, others B-roll
         rawCaption: session.caption,
       },
     }];
@@ -147,21 +126,21 @@ if (session.step === 1) {
   if (updated && !message.media_group_id) {
     const missing = [];
     if (!hasCaption) missing.push("📝 caption");
-    if (!hasSubject) missing.push("👤 you (video/photo)");
-    if (!hasVideos) missing.push("🎬 clips (b-roll)");
+    if (videoCount === 0) missing.push("🎬 main video (A-roll)");
+    if (videoCount === 1) missing.push("🎬 b-roll clips");
 
     await this.helpers.httpRequest({
       method: "POST",
       url: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       body: {
         chat_id: chatId,
-        text: `📥 Received some assets. Still missing: ${missing.join(", ")}.`,
+        text: `📥 Received ${videoCount} video(s). Still missing: ${missing.join(", ")}.`,
       },
       json: true,
     });
   }
 
-  return [{ json: { skip: true, reason: "collecting assets", hasCaption, hasSubject, videoCount: (session.videos || []).length } }];
+  return [{ json: { skip: true, reason: "collecting assets", hasCaption, videoCount } }];
 }
 
 // ── DEFAULT: Unexpected State Reset ───────────────────────────────────────

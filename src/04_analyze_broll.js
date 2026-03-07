@@ -7,11 +7,12 @@ const TELEGRAM_BOT_TOKEN = "8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc";
 
 const { chatId, aRollUrl, videos, rawCaption, transcription } = $input.first().json;
 
-// ── Step 1: Describe each b-roll video (via first frame / thumbnail) ──────
+// ── Step 1: Describe each b-roll video (skip the first one as it's a-roll) ──
+// We isolate just the b-roll clips (everything after the first video)
+const brollClips = videos.slice(1);
 const videoDescriptions = [];
-for (const vid of videos) {
-  // Download first ~10KB of the video to use as context (or use URL directly)
-  // We'll ask the model to infer from URL metadata + description request
+
+for (const vid of brollClips) {
   const descResp = await this.helpers.httpRequest({
     method: "POST",
     url: "https://openrouter.ai/api/v1/chat/completions",
@@ -21,7 +22,7 @@ for (const vid of videos) {
       "HTTP-Referer": "https://n8n.workflow",
       "X-Title": "Video Editor Bot",
     },
-    body: JSON.stringify({
+    body: {
       model: "openai/gpt-4o",
       messages: [
         {
@@ -33,19 +34,18 @@ for (const vid of videos) {
 The video URL is: ${vid.url}
 Duration: ${vid.duration || "unknown"} seconds
 
-Based on the URL and any context you can infer, describe:
+Based on the URL and context, describe:
 1. What this b-roll clip likely shows (visual content, mood, setting)
-2. What topics or keywords it best matches
-3. Ideal usage duration for a b-roll insert (2-5 seconds recommended)
+2. What topics it matches
+3. Ideal usage duration (2-5 seconds recommended)
 
-Be concise. Return JSON only:
-{"description": "...", "keywords": ["..."], "suggestedDuration": 3}`,
+Return JSON: {"description": "...", "keywords": ["..."], "suggestedDuration": 3}`,
             },
           ],
         },
       ],
       max_tokens: 300,
-    }),
+    },
   });
 
   let desc = { description: "b-roll clip", keywords: [], suggestedDuration: 3 };
@@ -61,7 +61,7 @@ Be concise. Return JSON only:
 
 // ── Step 2: Create edit plan using transcription ───────────────────────────
 const brollSummary = videoDescriptions
-  .map((v, i) => `Clip ${i + 1}: "${v.description}" | keywords: ${v.keywords.join(", ")} | suggested: ${v.suggestedDuration}s`)
+  .map((v, i) => `Clip ${i}: "${v.description}" | keywords: ${v.keywords.join(", ")} | suggested: ${v.suggestedDuration}s`)
   .join("\n");
 
 const planResp = await this.helpers.httpRequest({
@@ -73,38 +73,32 @@ const planResp = await this.helpers.httpRequest({
     "HTTP-Referer": "https://n8n.workflow",
     "X-Title": "Video Editor Bot",
   },
-  body: JSON.stringify({
+  body: {
     model: "openai/gpt-4o",
     messages: [
       {
         role: "system",
-        content: `You are a professional social media video editor. Your job is to plan b-roll inserts over an a-roll talking-head video.
+        content: `You are a social media video editor. Plan b-roll inserts over an a-roll.
 Rules:
-- First 3 seconds: always show the speaker (a-roll) for hook
-- B-roll should match what the speaker is saying
-- Each b-roll insert: 2-5 seconds
-- Leave speaker visible during key emotional moments
-- Return ONLY valid JSON`,
+- First 3 seconds: always show speaker (a-roll)
+- B-roll should match speech
+- Inserts: 2-5 seconds
+- Return ONLY JSON`,
       },
       {
         role: "user",
-        content: `TRANSCRIPTION (a-roll):
+        content: `TRANSCRIPTION:
 "${transcription}"
 
 AVAILABLE B-ROLL CLIPS:
 ${brollSummary}
 
-Create a b-roll edit plan. For each insert specify:
-- startTime (seconds into the video)
-- duration (seconds)
-- clipIndex (0-based index from the list above)
-- reason (why this clip fits here)
-
+Create a b-roll edit plan.
 Return JSON array: [{"startTime": 5, "duration": 3, "clipIndex": 0, "reason": "..."}]`,
       },
     ],
     max_tokens: 800,
-  }),
+  },
 });
 
 let editPlan = [];
@@ -113,7 +107,6 @@ try {
   editPlan = JSON.parse(raw);
 } catch (e) {
   // fallback: insert clips evenly
-  const estimatedDuration = transcription.split(" ").length / 2.5; // rough: 2.5 words/sec
   editPlan = videoDescriptions.map((v, i) => ({
     startTime: 4 + i * 6,
     duration: v.suggestedDuration || 3,
@@ -126,7 +119,7 @@ return [{
   json: {
     chatId,
     aRollUrl,
-    videos: videoDescriptions,
+    brolls: videoDescriptions, // Renamed to brolls to be explicit
     rawCaption,
     transcription,
     editPlan,

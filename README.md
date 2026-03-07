@@ -10,10 +10,10 @@ Converts your voice note + photo + b-roll videos into a fully edited, AI-compose
 challenge-video-pipeline1/
 ├── src/                           # Source JS files (edit these, then run build.js)
 │   ├── 01_session_manager.js      # Handles Telegram messages, session state
-│   ├── 02_transcribe_audio.js     # Transcribes voice note via fal.ai Whisper
-│   ├── 03_generate_aroll.js       # Generates lip-sync video via fal.ai + Pika
+│   ├── 02_transcribe_audio.js     # Transcribes voice note via Replicate Whisper
+│   ├── 03_generate_aroll.js       # Generates lip-sync video via Replicate Pixverse
 │   ├── 04_analyze_broll.js        # Analyzes b-roll clips, creates edit plan with GPT-4o
-│   ├── 05_compose_video.js        # Composes final video with b-roll via fal.ai FFmpeg
+│   ├── 05_compose_video.js        # Composes final video with b-roll via local FFmpeg
 │   ├── 06_send_result.js          # Generates viral caption, sends video to Telegram
 │   └── 07_error_handler.js        # Catches errors, notifies user
 ├── workflow_template.json          # n8n workflow skeleton (%%CODE_XX%% placeholders)
@@ -78,9 +78,9 @@ Telegram Caption + Photo + Videos
        ↓
 [Session Manager] — assembles all assets, triggers pipeline
        ↓
-[Transcribe Audio] — Whisper via OpenRouter
+[Transcribe Audio] — Whisper via Replicate
        ↓
-[Generate A-Roll] — Pika lip-sync via fal.ai (photo + audio → talking video)
+[Generate A-Roll] — Pixverse lip-sync via Replicate (video + audio → talking video)
        ↓
 [Analyze B-Roll] — GPT-4o describes each clip, plans insertion timestamps
        ↓
@@ -96,7 +96,7 @@ Telegram Caption + Photo + Videos
 | Service | Key |
 |---------|-----|
 | Telegram Bot | `8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc` |
-| fal.ai | `b58c67f2-94ec-4cfa-bfb7-158a15203b29:54446e43821d9169aba9d11b0f50f536` |
+| Replicate | `r8_cYkGtnlW5dT9h0e6aThUBTtP1mhZ3Y33AgHUy` |
 | OpenRouter | `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` |
 
 ---
@@ -113,8 +113,9 @@ node build.js
 
 ## ⚠️ Notes
 
-- fal.ai `fal-ai/ffmpeg-api/compose` endpoint handles the video compositing. If it's unavailable on your fal.ai plan, the pipeline falls back to returning the a-roll only.
-- fal.ai Whisper (`fal-ai/whisper`) transcribes the Telegram voice note by URL — no download required.
+- Video compositing is done locally using FFmpeg (must be installed in the n8n environment).
+- Replicate Whisper (`openai/whisper`) transcribes the Telegram voice note by URL — no download required.
+- Replicate Pixverse (`pixverse/lipsync`) generates the lip-synced A-roll video.
 - Session state uses n8n's `$getWorkflowStaticData("global")` — it persists across executions within the same workflow instance.
 - Telegram only sends one media item per message payload. For multiple b-roll videos, the session manager accumulates them across messages.
 

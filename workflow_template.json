@@ -76,7 +76,8 @@
             "position": [
                 900,
                 380
-            ]
+            ],
+            "onError": "continueErrorOutput"
         },
         {
             "parameters": {
@@ -89,7 +90,8 @@
             "position": [
                 1120,
                 380
-            ]
+            ],
+            "onError": "continueErrorOutput"
         },
         {
             "parameters": {
@@ -102,7 +104,8 @@
             "position": [
                 1340,
                 380
-            ]
+            ],
+            "onError": "continueErrorOutput"
         },
         {
             "parameters": {
@@ -115,7 +118,8 @@
             "position": [
                 1560,
                 380
-            ]
+            ],
+            "onError": "continueErrorOutput"
         },
         {
             "parameters": {
@@ -128,7 +132,8 @@
             "position": [
                 1780,
                 380
-            ]
+            ],
+            "onError": "continueErrorOutput"
         },
         {
             "parameters": {
@@ -187,6 +192,13 @@
                         "type": "main",
                         "index": 0
                     }
+                ],
+                [
+                    {
+                        "node": "Error Handler",
+                        "type": "main",
+                        "index": 0
+                    }
                 ]
             ]
         },
@@ -195,6 +207,13 @@
                 [
                     {
                         "node": "Analyze B-Roll & Edit Plan",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Error Handler",
                         "type": "main",
                         "index": 0
                     }
@@ -209,6 +228,13 @@
                         "type": "main",
                         "index": 0
                     }
+                ],
+                [
+                    {
+                        "node": "Error Handler",
+                        "type": "main",
+                        "index": 0
+                    }
                 ]
             ]
         },
@@ -217,6 +243,25 @@
                 [
                     {
                         "node": "Generate Caption & Send Video",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Error Handler",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Caption & Send Video": {
+            "main": [
+                [],
+                [
+                    {
+                        "node": "Error Handler",
                         "type": "main",
                         "index": 0
                     }

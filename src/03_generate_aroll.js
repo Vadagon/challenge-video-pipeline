@@ -1,70 +1,76 @@
-// NODE: Generate A-Roll via fal.ai (Sync Lipsync 2 Pro)
-// High-quality lip-sync for both images and videos.
-// Sync Lipsync 2 Pro supports images as visual input directly (passed to video_url).
+// NODE: Generate A-Roll via Replicate (Pixverse Lip-sync)
+// Uses the first video from the session as the talking head (A-roll).
+// Lipsyncs it with the provided audio via Replicate.
 
-const FAL_AI_API_KEY = "b58c67f2-94ec-4cfa-bfb7-158a15203b29:54446e43821d9169aba9d11b0f50f536";
+const REPLICATE_API_TOKEN = "r8_cYkGtnlW5dT9h0e6aThUBTtP1mhZ3Y33AgHUy";
 
-const { chatId, audioUrl, subjectUrl, videos, rawCaption, transcription } = $input.first().json;
+const { chatId, audioUrl, videos, rawCaption, transcription } = $input.first().json;
 
-// ── STEP 1: Submit Lip-sync Job ──────────────────────────────────────────
-// We pass the subject (Photo or Video) directly to video_url
+if (!videos || videos.length === 0) {
+  throw new Error("No videos found in session. Need at least one for A-Roll.");
+}
+
+// First video in the list is the A-roll
+const aRollSource = videos[0].url;
+
+// ── STEP 1: Submit Prediction to Replicate ──────────────────────────────
 const submitResp = await this.helpers.httpRequest({
   method: "POST",
-  url: "https://queue.fal.run/fal-ai/sync-lipsync/v2/pro",
+  url: "https://api.replicate.com/v1/models/pixverse/lipsync/predictions",
   headers: {
-    Authorization: `Key ${FAL_AI_API_KEY}`,
+    Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
     "Content-Type": "application/json",
   },
   body: {
-    video_url: subjectUrl,
-    audio_url: audioUrl,
+    input: {
+      video: aRollSource,
+      audio: audioUrl,
+    },
   },
 });
 
-const statusUrl = submitResp.status_url;
-const responseUrl = submitResp.response_url;
+const predictionId = submitResp.id;
+const pollUrl = submitResp.urls.get;
 
-if (!statusUrl) {
-  throw new Error("fal.ai did not return required queue URLs: " + JSON.stringify(submitResp));
+if (!predictionId || !pollUrl) {
+  throw new Error("Replicate did not return prediction information: " + JSON.stringify(submitResp));
 }
 
 // ── STEP 2: Poll for completion ─────────────────────────────────────────
 let aRollUrl = null;
-for (let i = 0; i < 48; i++) { // Max 4 minutes (high quality takes longer)
-  await new Promise((r) => setTimeout(r, 5000));
+for (let i = 0; i < 60; i++) { // Max 10 minutes (Replicate can be slow)
+  await new Promise((r) => setTimeout(r, 10000)); // Poll every 10s
 
   const statusResp = await this.helpers.httpRequest({
     method: "GET",
-    url: statusUrl,
-    headers: { Authorization: `Key ${FAL_AI_API_KEY}` },
+    url: pollUrl,
+    headers: { Authorization: `Bearer ${REPLICATE_API_TOKEN}` },
   });
 
-  if (statusResp.status === "COMPLETED") {
-    const resultResp = await this.helpers.httpRequest({
-      method: "GET",
-      url: responseUrl,
-      headers: { Authorization: `Key ${FAL_AI_API_KEY}` },
-    });
-
-    // Check possible response paths
-    aRollUrl = resultResp.video?.url || resultResp.output?.video_url || resultResp.video_url || resultResp.url;
+  if (statusResp.status === "succeeded") {
+    // Replicate output for pixverse/lipsync is usually the video URL string
+    aRollUrl = statusResp.output;
     break;
   }
 
-  if (statusResp.status === "FAILED") {
-    throw new Error("Sync Lipsync 2 Pro job failed: " + JSON.stringify(statusResp));
+  if (statusResp.status === "failed") {
+    throw new Error("Replicate prediction failed: " + (statusResp.error || JSON.stringify(statusResp)));
+  }
+
+  if (statusResp.status === "canceled") {
+    throw new Error("Replicate prediction was canceled.");
   }
 }
 
 if (!aRollUrl) {
-  throw new Error("Timeout waiting for Lip-sync result");
+  throw new Error("Timeout waiting for Replicate lip-sync result");
 }
 
 return [{
   json: {
     chatId,
     aRollUrl,
-    videos,
+    videos, // Keep all videos, first is A-Roll source, others are B-Roll
     rawCaption,
     transcription,
   },

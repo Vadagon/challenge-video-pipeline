@@ -62,7 +62,6 @@ console.log(`\nNext steps:`);
 console.log(`  1. Open your n8n instance`);
 console.log(`  2. Go to Workflows → Import from File`);
 console.log(`  3. Select workflow.json`);
-console.log(`  4. Add a "Telegram API" credential with your bot token:`);
-console.log(`       Token: 8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc`);
+console.log(`  4. Add a "Telegram API" credential with your bot token`);
 console.log(`  5. Assign it to the "Telegram Trigger" node`);
 console.log(`  6. Activate the workflow — n8n handles the webhook automatically`);
