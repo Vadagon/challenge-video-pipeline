@@ -11,11 +11,13 @@ async function analyzeBRoll(brollClips, transcription) {
         "X-Title": "Video Editor Bot",
     };
 
+    const { withRetry } = require('../utils/retry');
+
     // Step 1: Describe each b-roll video
     const videoDescriptions = [];
     for (const vid of brollClips) {
         try {
-            const descResp = await axios.post(
+            const descResp = await withRetry(() => axios.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 {
                     model: "openai/gpt-4o",
@@ -42,7 +44,7 @@ Return JSON: {"description": "...", "keywords": ["..."], "suggestedDuration": 3}
                     max_tokens: 300,
                 },
                 { headers }
-            );
+            ));
 
             let desc = { description: "b-roll clip", keywords: [], suggestedDuration: 3 };
             const content = descResp.data.choices[0].message.content;
@@ -67,7 +69,9 @@ Return JSON: {"description": "...", "keywords": ["..."], "suggestedDuration": 3}
 
     let editPlan = [];
     try {
-        const planResp = await axios.post(
+        const transcriptionText = typeof transcription === 'string' ? transcription : transcription.text;
+
+        const planResp = await withRetry(() => axios.post(
             "https://openrouter.ai/api/v1/chat/completions",
             {
                 model: "openai/gpt-4o",
@@ -84,7 +88,7 @@ Rules:
                     {
                         role: "user",
                         content: `TRANSCRIPTION:
-"${transcription}"
+"${transcriptionText}"
 
 AVAILABLE B-ROLL CLIPS:
 ${brollSummary}
@@ -96,7 +100,7 @@ Return JSON array: [{"startTime": 5, "duration": 3, "clipIndex": 0, "reason": ".
                 max_tokens: 800,
             },
             { headers }
-        );
+        ));
 
         const raw = planResp.data.choices[0].message.content.replace(/```json|```/g, "").trim();
         editPlan = JSON.parse(raw);

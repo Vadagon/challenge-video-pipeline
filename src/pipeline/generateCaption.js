@@ -4,7 +4,11 @@ async function generateCaption(rawCaption, transcription) {
     const token = process.env.OPENROUTER_API_KEY;
     if (!token) throw new Error("OPENROUTER_API_KEY missing");
 
-    const captionResp = await axios.post(
+    const { withRetry } = require('../utils/retry');
+
+    const transcriptionText = typeof transcription === 'string' ? transcription : transcription.text;
+
+    const captionResp = await withRetry(() => axios.post(
         "https://openrouter.ai/api/v1/chat/completions",
         {
             model: "openai/gpt-4o",
@@ -15,7 +19,7 @@ async function generateCaption(rawCaption, transcription) {
                 },
                 {
                     role: "user",
-                    content: `Raw caption idea: "${rawCaption}"\n\nVideo transcription (what I say in the video):\n"${transcription}"\n\nWrite the viral caption with hashtags:`,
+                    content: `Raw caption idea: "${rawCaption}"\n\nVideo transcription (what I say in the video):\n"${transcriptionText}"\n\nWrite the viral caption with hashtags:`,
                 },
             ],
             max_tokens: 400,
@@ -28,7 +32,7 @@ async function generateCaption(rawCaption, transcription) {
                 "X-Title": "Video Caption Generator",
             }
         }
-    );
+    ));
 
     return captionResp.data.choices[0].message.content.trim();
 }
