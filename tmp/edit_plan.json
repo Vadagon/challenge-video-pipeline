@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "startTime": 1,
+    "duration": 2.6,
+    "clipIndex": 0,
+    "reason": "Since the a-roll is a very short test phrase, this dynamic b-roll is added early to make the clip more visually engaging and hook the viewer."
+  }
+]

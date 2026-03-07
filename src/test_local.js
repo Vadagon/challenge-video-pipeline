@@ -16,8 +16,31 @@ const { generateCaption } = require('./pipeline/generateCaption');
 // To test locally without changing the core scripts (which use Axios to fetch URLs),
 // we need to pass URLs. We can use fal.ai or replicate data URIs for files.
 
+const ffmpeg = require('fluent-ffmpeg');
 const axios = require('axios');
 const FormData = require('form-data');
+
+async function convertToMp3(inputPath, outputPath) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .outputOptions('-acodec', 'libmp3lame', '-ar', '44100', '-ab', '192k')
+            .output(outputPath)
+            .on('end', resolve)
+            .on('error', reject)
+            .run();
+    });
+}
+
+async function convertToMp4(inputPath, outputPath) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .outputOptions('-vcodec', 'libx264', '-acodec', 'aac', '-movflags', 'faststart', '-pix_fmt', 'yuv420p')
+            .output(outputPath)
+            .on('end', resolve)
+            .on('error', reject)
+            .run();
+    });
+}
 
 async function fileToPublicUrl(filePath) {
     const form = new FormData();
@@ -28,7 +51,6 @@ async function fileToPublicUrl(filePath) {
     });
 
     const pageUrl = res.data.data.url;
-    // tmpfiles.org provides a landing page URL. We can get the direct file URL by inserting '/dl/'
     const directUrl = pageUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
     return directUrl;
 }
@@ -51,23 +73,65 @@ async function runLocalTest() {
         fs.mkdirSync(tmpDir, { recursive: true });
     }
 
-    // Replace these with the actual files from your assets folder
-    const audioFile = path.join(assetsDir, 'test_audio.mp3');
-    // Use the MOV file for A-Roll since pixverse/lipsync expects a video, not an image
-    const aRollSourceFile = path.join(assetsDir, 'test_video.mp4');
-    const bRollFile = path.join(assetsDir, 'test_video.mp4');
+    const distDir = path.join(assetsDir, 'dist');
+    if (!fs.existsSync(distDir)) {
+        fs.mkdirSync(distDir, { recursive: true });
+    }
+
+    // Discover raw assets dynamically (excluding dist folder and non-media)
+    const allEntries = fs.readdirSync(assetsDir, { withFileTypes: true });
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+    const audioExtensions = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
+
+    const rawVideos = allEntries
+        .filter(e => !e.isDirectory() && videoExtensions.includes(path.extname(e.name).toLowerCase()))
+        .map(e => path.join(assetsDir, e.name));
+    const rawAudios = allEntries
+        .filter(e => !e.isDirectory() && audioExtensions.includes(path.extname(e.name).toLowerCase()))
+        .map(e => path.join(assetsDir, e.name));
+
+    if (rawVideos.length === 0) throw new Error("No video files found in assets/");
+    if (rawAudios.length === 0) throw new Error("No audio files found in assets/");
+
+    // 1st video is A-roll, rest are B-rolls
+    const rawARollFile = rawVideos[0];
+    const rawBRollFiles = rawVideos.slice(1);
+    const rawAudioFile = rawAudios[0];
+
+    // Normalized output paths (in assets/dist/)
+    const audioFile = path.join(distDir, path.basename(rawAudioFile, path.extname(rawAudioFile)) + '.mp3');
+    const aRollSourceFile = path.join(distDir, path.basename(rawARollFile, path.extname(rawARollFile)) + '.mp4');
+
+    // We'll generate b-roll local paths dynamically in assets/dist/
+    const getBRollPath = (i) => path.join(distDir, path.basename(rawBRollFiles[i], path.extname(rawBRollFiles[i])) + '.mp4');
 
     console.log(`--- Starting Local Pipeline Test (Step: ${stepToRun !== null ? stepToRun : 'ALL'}) ---`);
+    console.log(`Found ${rawVideos.length} videos and ${rawAudios.length} audios.`);
+    console.log(`A-Roll Source (Raw): ${path.basename(rawARollFile)}`);
+    console.log(`B-Roll Sources (Raw): ${rawBRollFiles.map(f => path.basename(f)).join(', ') || 'None'}`);
 
     const chatId = 'local-test';
     const rawCaption = 'This is a test run locally without Telegram.';
 
     try {
-        let audioUri, aRollSourceUri, bRollUri;
+        // Step 0: Normalize assets + upload
+        let audioUri, aRollSourceUri, bRollUris = [];
         const urlsFile = path.join(tmpDir, 'uploaded_urls.json');
 
         if (stepToRun === null || stepToRun === 0) {
-            console.log('\n[0/7] ☁️ Uploading local files to Public URL (tmpfiles.org)...');
+            console.log('\n[0/7] 🎞️ Normalizing assets & uploading to public URL...');
+
+            console.log(`  -> Normalizing audio: ${path.basename(rawAudioFile)} → ${path.basename(audioFile)}...`);
+            await convertToMp3(rawAudioFile, audioFile);
+
+            console.log(`  -> Normalizing A-Roll: ${path.basename(rawARollFile)} → ${path.basename(aRollSourceFile)}...`);
+            await convertToMp4(rawARollFile, aRollSourceFile);
+
+            for (let i = 0; i < rawBRollFiles.length; i++) {
+                const outPath = getBRollPath(i);
+                console.log(`  -> Normalizing B-Roll ${i}: ${path.basename(rawBRollFiles[i])} → ${path.basename(outPath)}...`);
+                await convertToMp4(rawBRollFiles[i], outPath);
+            }
 
             console.log('  -> Uploading voice note...');
             audioUri = await fileToPublicUrl(audioFile);
@@ -75,19 +139,22 @@ async function runLocalTest() {
             console.log('  -> Uploading A-Roll video...');
             aRollSourceUri = await fileToPublicUrl(aRollSourceFile);
 
-            console.log('  -> Uploading B-Roll video...');
-            bRollUri = await fileToPublicUrl(bRollFile);
+            console.log('  -> Uploading B-Roll videos...');
+            for (let i = 0; i < rawBRollFiles.length; i++) {
+                const uri = await fileToPublicUrl(getBRollPath(i));
+                bRollUris.push(uri);
+            }
 
-            fs.writeFileSync(urlsFile, JSON.stringify({ audioUri, aRollSourceUri, bRollUri }, null, 2));
+            fs.writeFileSync(urlsFile, JSON.stringify({ audioUri, aRollSourceUri, bRollUris }, null, 2));
             console.log('Uploaded URLs saved to tmp/uploaded_urls.json');
-            console.log('Audio:', audioUri);
-            console.log('A-Roll:', aRollSourceUri);
-            console.log('B-Roll:', bRollUri);
+            console.log('  Audio:', audioUri);
+            console.log('  A-Roll:', aRollSourceUri);
+            console.log('  B-Rolls:', bRollUris);
         } else if (fs.existsSync(urlsFile)) {
             const urls = JSON.parse(fs.readFileSync(urlsFile, 'utf8'));
             audioUri = urls.audioUri;
             aRollSourceUri = urls.aRollSourceUri;
-            bRollUri = urls.bRollUri;
+            bRollUris = urls.bRollUris || [];
         }
 
         let transcription;
@@ -129,10 +196,10 @@ async function runLocalTest() {
         if (stepToRun === null || stepToRun === 4) {
             console.log('\n[4/7] 👁️ Describing B-Roll clips...');
             const { describeBRolls } = require('./pipeline/analyzeBroll');
-            const brollClips = [{ url: bRollUri, duration: 5 }];
+            const brollClips = bRollUris.map(uri => ({ url: uri, duration: 5 }));
             brolls = await describeBRolls(brollClips);
             fs.writeFileSync(brollDescriptionFile, JSON.stringify(brolls, null, 2));
-            console.log('B-roll Descriptions saved to tmp/broll_descriptions.json');
+            console.log(`B-roll Descriptions (${brolls.length}) saved to tmp/broll_descriptions.json`);
         } else if (fs.existsSync(brollDescriptionFile)) {
             brolls = JSON.parse(fs.readFileSync(brollDescriptionFile, 'utf8'));
         }
@@ -150,8 +217,11 @@ async function runLocalTest() {
             editPlan = JSON.parse(fs.readFileSync(editPlanFile, 'utf8'));
         }
 
-        if (brolls && brolls.length > 0) {
-            brolls[0].localPath = bRollFile;
+        // Map local paths back to brolls for composition
+        if (brolls) {
+            brolls.forEach((b, i) => {
+                b.localPath = getBRollPath(i);
+            });
         }
 
         let finalVideoPath = path.join(tmpDir, 'final_video.mp4');

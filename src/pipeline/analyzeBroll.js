@@ -115,23 +115,25 @@ async function planEdit(videoDescriptions, transcription) {
                     messages: [
                         {
                             role: "system",
-                            content: `You are a social media video editor. Plan b-roll inserts over an a-roll.
+                            content: `You are a social media video editor. Plan b-roll inserts over an a-roll video.
 Rules:
-- First 3 seconds: always show speaker (a-roll)
-- B-roll should match speech
-- Inserts: 2-5 seconds
-- Return ONLY JSON`
+- Prefer keeping the first 3 seconds as a-roll (speaker on camera), but for short clips under 5s you may start b-roll at 1s
+- B-roll clips should visually match or complement the speech topic
+- Each insert should be 2-5 seconds long
+- Always return AT LEAST ONE b-roll insert — never return an empty array
+- If the transcription is very short, insert a single b-roll clip early (e.g. startTime: 1 or 2)
+- Return ONLY a raw JSON array with no markdown, no code fences`
                         },
                         {
                             role: "user",
-                            content: `TRANSCRIPTION:
+                            content: `TRANSCRIPTION (total duration ≈ ${typeof transcription === 'string' ? '?' : ((transcription.segments?.at(-1)?.end ?? 5).toFixed(1))}s):
 "${transcriptionText}"
 
 AVAILABLE B-ROLL CLIPS:
 ${brollSummary}
 
-Create a b-roll edit plan.
-Return JSON array: [{"startTime": 5, "duration": 3, "clipIndex": 0, "reason": "..."}]`
+Create a b-roll edit plan. You MUST include at least one entry.
+Return a JSON array only: [{"startTime": 1, "duration": 3, "clipIndex": 0, "reason": "..."}]`
                         }
                     ],
                     stream: true
