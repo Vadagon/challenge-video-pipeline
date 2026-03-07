@@ -1,4 +1,5 @@
 {
-  "audioUri": "https://api.replicate.com/v1/files/NjhhZDc1NjgtOTk2NS00MGQxLWFlOWQtYjVkMjlkNTZkNzU5",
-  "aRollSourceUri": "https://api.replicate.com/v1/files/MGFmMTYzZjQtMjBkYy00ZmY1LWE3N2ItNTIyNmEwNGE4Y2Ux"
+  "audioUri": "http://tmpfiles.org/dl/27629099/test_audio.mp3",
+  "aRollSourceUri": "http://tmpfiles.org/dl/27629102/test_video.mp4",
+  "bRollUri": "http://tmpfiles.org/dl/27629105/test_video.mp4"
 }

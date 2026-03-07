@@ -119,3 +119,44 @@ node build.js
 - Session state uses n8n's `$getWorkflowStaticData("global")` — it persists across executions within the same workflow instance.
 - Telegram only sends one media item per message payload. For multiple b-roll videos, the session manager accumulates them across messages.
 
+---
+
+## 🛠️ Local Testing
+
+You can run individual parts of the pipeline locally without having to trigger the full bot via Telegram. This is great for debugging prompts, API limits, or parsing errors. 
+
+**Make sure you have an `.env` file with `REPLICATE_API_TOKEN` and `OPENROUTER_API_KEY`.**
+
+The `tmp/` folder will comfortably cache outputs at every step and act as the input for the *next* step so you don't rebuild from scratch.
+
+### 🏃 Running Steps Independently
+
+Run these bash commands in order. If you need to re-run a step, you can just execute it again without starting over!
+
+```bash
+# Step 0: Upload initial mock assets located in /assets to the Replicate cloud
+node src/test_local.js 0
+
+# Step 1: Transcribe the uploaded voice note using WhisperX
+node src/test_local.js 1
+
+# Step 2: Generate Lip-sync A-Roll using Pixverse
+node src/test_local.js 2
+
+# Step 3: Download A-Roll locally for composition
+node src/test_local.js 3
+
+# Step 4: Describe B-Roll clips using Gemini 2.5 Pro
+node src/test_local.js 4
+
+# Step 5: Plan the edit based on description and transcript
+node src/test_local.js 5
+
+# Step 6: Compose the final video using local FFmpeg
+node src/test_local.js 6
+
+# Step 7: Generate the final viral caption (OpenRouter)
+node src/test_local.js 7
+```
+
+> **Note:** Running `node src/test_local.js` without any arguments will completely wipe the `./tmp` folder and execute all 0-7 steps continuously.

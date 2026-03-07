@@ -21,10 +21,17 @@ async function generateARoll(audioUrl, aRollSourceUrl) {
     ));
 
     // The SDK waits for the prediction to finish and returns the final output.
-    const aRollUrl = output;
+    let aRollUrl = output;
 
     if (!aRollUrl) {
         throw new Error("Failed to obtain Replicate lip-sync result");
+    }
+
+    // New Replicate SDK v1.0+ returns FileOutput objects. Convert to a string cleanly.
+    if (typeof aRollUrl === 'object' && aRollUrl.url) {
+        aRollUrl = aRollUrl.url().toString();
+    } else {
+        aRollUrl = aRollUrl.toString();
     }
 
     return aRollUrl;

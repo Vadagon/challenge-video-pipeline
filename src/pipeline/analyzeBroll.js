@@ -1,111 +1,162 @@
-const axios = require('axios');
+const { withRetry } = require('../utils/retry');
 
-async function analyzeBRoll(brollClips, transcription) {
-    const token = process.env.OPENROUTER_API_KEY;
-    if (!token) throw new Error("OPENROUTER_API_KEY missing");
+/**
+ * Helper to get the OpenRouter SDK client.
+ * Since the SDK is ESM-only, we use dynamic import.
+ */
+async function getOpenRouterClient() {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
 
-    const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://example.com/video-editor",
-        "X-Title": "Video Editor Bot",
-    };
+    // Dynamic import to handle ESM module in CJS
+    const { OpenRouter } = await import("@openrouter/sdk");
+    return new OpenRouter({ apiKey });
+}
 
-    const { withRetry } = require('../utils/retry');
-
-    // Step 1: Describe each b-roll video
+/**
+ * Step 1: Describe each b-roll video clip using multimodal video analysis
+ */
+async function describeBRolls(brollClips) {
+    const openrouter = await getOpenRouterClient();
     const videoDescriptions = [];
+
     for (const vid of brollClips) {
         try {
-            const descResp = await withRetry(() => axios.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                {
-                    model: "openai/gpt-4o",
-                    messages: [
-                        {
-                            role: "user",
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `You are analyzing a b-roll video clip for a social media video editor.
-The video URL is: ${vid.url}
-Duration: ${vid.duration || "unknown"} seconds
+            console.log(`\n[AI] Analyzing B-Roll: ${vid.url}`);
 
-Based on the URL and context, describe:
-1. What this b-roll clip likely shows (visual content, mood, setting)
-2. What topics it matches
-3. Ideal usage duration (2-5 seconds recommended)
+            const fullContent = await withRetry(async () => {
+                const stream = await openrouter.chat.send({
+                    chatGenerationParams: {
+                        model: "google/gemini-2.5-pro",
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    {
+                                        type: "text",
+                                        text: `You are analyzing a b-roll video clip for a social media video editor.
+Describe the following video clip in detail.
+Topics: mood, setting, visual content, and duration.
 
-Return JSON: {"description": "...", "keywords": ["..."], "suggestedDuration": 3}`,
-                                },
-                            ],
-                        },
-                    ],
-                    max_tokens: 300,
-                },
-                { headers }
-            ));
+Return ONLY a valid JSON object:
+{
+  "description": "detailed visual description",
+  "keywords": ["tag1", "tag2"],
+  "suggestedDuration": 3
+}`
+                                    },
+                                    {
+                                        type: "video_url",
+                                        video_url: {
+                                            url: vid.url
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        stream: true
+                    }
+                });
+
+                let accumulated = "";
+                for await (const chunk of stream) {
+                    const delta = chunk.choices[0]?.delta?.content;
+                    if (delta) {
+                        accumulated += delta;
+                        process.stdout.write(delta);
+                    }
+                }
+                return accumulated;
+            });
 
             let desc = { description: "b-roll clip", keywords: [], suggestedDuration: 3 };
-            const content = descResp.data.choices[0].message.content;
-            try {
-                const raw = content.replace(/```json|```/g, "").trim();
-                desc = JSON.parse(raw);
-            } catch (e) {
-                desc.description = content || "b-roll clip";
+
+            if (fullContent) {
+                console.log(`\n[AI Response] Finished accumulation.`);
+                try {
+                    const jsonMatch = fullContent.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        desc = JSON.parse(jsonMatch[0]);
+                    }
+                } catch (e) {
+                    console.warn("JSON Parse failed for clip description, using raw content");
+                    desc.description = fullContent.replace(/```json|```/g, "").trim();
+                }
             }
 
             videoDescriptions.push({ ...vid, ...desc });
         } catch (err) {
-            console.error("Failed to analyze b-roll clip", err.message);
+            console.error("\nFailed to analyze b-roll clip:", err.message);
             videoDescriptions.push({ ...vid, description: "b-roll clip", keywords: [], suggestedDuration: 3 });
         }
     }
+    return videoDescriptions;
+}
 
-    // Step 2: Create edit plan using transcription
+/**
+ * Step 2: Create edit plan using transcription and descriptions
+ */
+async function planEdit(videoDescriptions, transcription) {
+    const openrouter = await getOpenRouterClient();
     const brollSummary = videoDescriptions
         .map((v, i) => `Clip ${i}: "${v.description}" | keywords: ${v.keywords.join(", ")} | suggested: ${v.suggestedDuration}s`)
         .join("\n");
 
+    const transcriptionText = typeof transcription === 'string' ? transcription : transcription.text;
+
     let editPlan = [];
     try {
-        const transcriptionText = typeof transcription === 'string' ? transcription : transcription.text;
+        console.log(`\n[AI] Planning edit sequence...`);
 
-        const planResp = await withRetry(() => axios.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                model: "openai/gpt-4o",
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are a social media video editor. Plan b-roll inserts over an a-roll.
+        const fullContent = await withRetry(async () => {
+            const stream = await openrouter.chat.send({
+                chatGenerationParams: {
+                    model: "google/gemini-2.5-pro",
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are a social media video editor. Plan b-roll inserts over an a-roll.
 Rules:
 - First 3 seconds: always show speaker (a-roll)
 - B-roll should match speech
 - Inserts: 2-5 seconds
-- Return ONLY JSON`,
-                    },
-                    {
-                        role: "user",
-                        content: `TRANSCRIPTION:
+- Return ONLY JSON`
+                        },
+                        {
+                            role: "user",
+                            content: `TRANSCRIPTION:
 "${transcriptionText}"
 
 AVAILABLE B-ROLL CLIPS:
 ${brollSummary}
 
 Create a b-roll edit plan.
-Return JSON array: [{"startTime": 5, "duration": 3, "clipIndex": 0, "reason": "..."}]`,
-                    },
-                ],
-                max_tokens: 800,
-            },
-            { headers }
-        ));
+Return JSON array: [{"startTime": 5, "duration": 3, "clipIndex": 0, "reason": "..."}]`
+                        }
+                    ],
+                    stream: true
+                }
+            });
 
-        const raw = planResp.data.choices[0].message.content.replace(/```json|```/g, "").trim();
-        editPlan = JSON.parse(raw);
+            let accumulated = "";
+            for await (const chunk of stream) {
+                const delta = chunk.choices[0]?.delta?.content;
+                if (delta) {
+                    accumulated += delta;
+                    process.stdout.write(delta);
+                }
+            }
+            return accumulated;
+        });
+
+        if (fullContent) {
+            console.log(`\n[AI Plan Response] Finished accumulation.`);
+            const raw = fullContent.replace(/```json|```/g, "").trim();
+            const jsonMatch = raw.match(/\[[\s\S]*\]/);
+            editPlan = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+        }
     } catch (err) {
-        console.error("Failed to generate edit plan", err.message);
+        console.error("\nFailed to generate edit plan:", err.message);
         // fallback: insert clips evenly
         editPlan = videoDescriptions.map((v, i) => ({
             startTime: 4 + i * 6,
@@ -114,8 +165,13 @@ Return JSON array: [{"startTime": 5, "duration": 3, "clipIndex": 0, "reason": ".
             reason: "evenly distributed fallback",
         }));
     }
-
-    return { brolls: videoDescriptions, editPlan };
+    return editPlan;
 }
 
-module.exports = { analyzeBRoll };
+async function analyzeBRoll(brollClips, transcription) {
+    const brolls = await describeBRolls(brollClips);
+    const editPlan = await planEdit(brolls, transcription);
+    return { brolls, editPlan };
+}
+
+module.exports = { analyzeBRoll, describeBRolls, planEdit };
