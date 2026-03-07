@@ -16,4 +16,23 @@ function getDuration(filePath) {
     }
 }
 
-module.exports = { getDuration };
+/**
+ * Get the width and height of a video file using ffprobe.
+ * Returns { width, height }, falling back to 1080x1920 if detection fails.
+ */
+function getVideoSize(filePath) {
+    try {
+        const output = execSync(
+            `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${filePath}"`,
+            { encoding: 'utf8' }
+        ).trim();
+        const [w, h] = output.split(',').map(Number);
+        if (w && h) return { width: w, height: h };
+    } catch (err) {
+        console.error(`Failed to get video size for ${filePath}:`, err.message);
+    }
+    return { width: 1080, height: 1920 }; // sensible default
+}
+
+module.exports = { getDuration, getVideoSize };
+

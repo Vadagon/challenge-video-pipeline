@@ -1,4 +1,4 @@
-# 🎬 Telegram → AI Video Pipeline (n8n)
+# 🎬 Telegram → AI Video Pipeline
 
 Converts your voice note + photo + b-roll videos into a fully edited, AI-composed video — delivered back to you on Telegram.
 
@@ -8,17 +8,17 @@ Converts your voice note + photo + b-roll videos into a fully edited, AI-compose
 
 ```
 challenge-video-pipeline1/
-├── src/                           # Source JS files (edit these, then run build.js)
-│   ├── 01_session_manager.js      # Handles Telegram messages, session state
-│   ├── 02_transcribe_audio.js     # Transcribes voice note via Replicate Whisper
-│   ├── 03_generate_aroll.js       # Generates lip-sync video via Replicate Pixverse
-│   ├── 04_analyze_broll.js        # Analyzes b-roll clips, creates edit plan with GPT-4o
-│   ├── 05_compose_video.js        # Composes final video with b-roll via local FFmpeg
-│   ├── 06_send_result.js          # Generates viral caption, sends video to Telegram
-│   └── 07_error_handler.js        # Catches errors, notifies user
-├── workflow_template.json          # n8n workflow skeleton (%%CODE_XX%% placeholders)
-├── workflow.json                   # ✅ BUILT FILE — import this into n8n
-├── build.js                        # Build script: injects src/ JS → workflow.json
+├── src/                           # Source JS files
+│   ├── server.js                  # Main Express / Polling Server
+│   ├── session.js                 # Session Manager
+│   ├── telegram.js                # Telegram API helpers
+│   ├── pipeline/                  # Core video pipeline steps
+│   │   ├── transcribe.js          # Transcribes voice note via Replicate Whisper
+│   │   ├── generateAroll.js       # Generates lip-sync video via Replicate Pixverse
+│   │   ├── analyzeBroll.js        # Analyzes b-roll clips, creates edit plan with GPT-4o
+│   │   ├── composeVideo.js        # Composes final video with b-roll via local FFmpeg
+│   │   └── generateCaption.js     # Generates viral caption, sends video to Telegram
+│   └── test_local.js              # Standalone local test runner
 └── README.md
 ```
 
@@ -26,22 +26,38 @@ challenge-video-pipeline1/
 
 ## 🚀 Setup
 
-### 1. Build the workflow
+### 1. Install Dependencies
 ```bash
-node build.js
+npm install
 ```
 
-### 2. Import into n8n
-- Open n8n → **Workflows** → **Import from File**
-- Select `workflow.json`
+### 2. Configure Environment variables
+Create a `.env` file in the root with your API keys:
+```env
+TELEGRAM_BOT_TOKEN=8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc
+REPLICATE_API_TOKEN=r8_cYkGtnlW5dT9h0e6aThUBTtP1mhZ3Y33AgHUy
+OPENROUTER_API_KEY=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
+```
 
-### 3. Add Telegram Credential
-- Go to **Credentials** → **New** → search `Telegram API`
-- Paste your bot token: `8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc`
-- Assign it to the **"Telegram Trigger"** node
+### 3. Start the Server (Local)
 
-### 4. Activate the workflow ✅
-n8n automatically registers the Telegram webhook — no manual `curl` needed.
+Ensure you have `ffmpeg` installed locally on your system.
+```bash
+npm start
+```
+The bot will begin polling for Telegram messages.
+
+---
+
+## ☁️ Deploying to Railway
+
+This project is fully ready to be deployed to [Railway.app](https://railway.app/).
+Since the video composition uses local FFmpeg, the included `Dockerfile` ensures it is installed in the hosting environment automatically.
+
+1. Create a new service on Railway and connect your GitHub repository.
+2. Railway will automatically detect the `Dockerfile` and build the container with FFmpeg included.
+3. In your Railway project, go to the **Variables** tab for the service and add your `TELEGRAM_BOT_TOKEN`, `REPLICATE_API_TOKEN`, and `OPENROUTER_API_KEY`.
+4. Deploy! The bot will begin polling for Telegram messages from the cloud.
 
 ---
 
@@ -103,21 +119,20 @@ Telegram Caption + Photo + Videos
 
 ## ✏️ Modifying Code
 
-Edit any file in `src/`, then rebuild:
+Edit any file in `src/`, then restart the server:
 ```bash
-node build.js
-# Re-import workflow.json into n8n
+npm start
 ```
 
 ---
 
 ## ⚠️ Notes
 
-- Video compositing is done locally using FFmpeg (must be installed in the n8n environment).
+- Video compositing is done locally using FFmpeg. When deploying to platforms like Railway, the included `Dockerfile` installs FFmpeg automatically for you.
 - Replicate Whisper (`openai/whisper`) transcribes the Telegram voice note by URL — no download required.
 - Replicate Pixverse (`pixverse/lipsync`) generates the lip-synced A-roll video.
-- Session state uses n8n's `$getWorkflowStaticData("global")` — it persists across executions within the same workflow instance.
-- Telegram only sends one media item per message payload. For multiple b-roll videos, the session manager accumulates them across messages.
+- Session state is kept in memory by `session.js` over the course of the bot interaction.
+- Telegram only sends one media item per message payload. For multiple b-roll videos or photos, the session manager accumulates them across messages.
 
 ---
 
@@ -134,7 +149,7 @@ The `tmp/` folder will comfortably cache outputs at every step and act as the in
 Run these bash commands in order. If you need to re-run a step, you can just execute it again without starting over!
 
 ```bash
-# Step 0: Upload initial mock assets located in /assets to the Replicate cloud
+# Step 0: Upload initial mock assets located in /assets to the public cloud
 node src/test_local.js 0
 
 # Step 1: Transcribe the uploaded voice note using WhisperX
@@ -149,14 +164,18 @@ node src/test_local.js 3
 # Step 4: Describe B-Roll clips using Gemini 2.5 Pro
 node src/test_local.js 4
 
-# Step 5: Plan the edit based on description and transcript
+# Step 5: Pre-render photo B-rolls as video clips with Ken Burns animation
 node src/test_local.js 5
 
-# Step 6: Compose the final video using local FFmpeg
+# Step 6: Plan the edit based on descriptions and transcript
 node src/test_local.js 6
 
-# Step 7: Generate the final viral caption (OpenRouter)
+# Step 7: Compose the final video using local FFmpeg
 node src/test_local.js 7
+
+# Step 8: Generate the final viral caption (OpenRouter)
+node src/test_local.js 8
 ```
 
-> **Note:** Running `node src/test_local.js` without any arguments will completely wipe the `./tmp` folder and execute all 0-7 steps continuously.
+> **Note:** Running `node src/test_local.js` without any arguments will completely wipe the `./tmp` folder and execute all 0-8 steps continuously.
+

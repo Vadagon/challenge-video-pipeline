@@ -1,16 +1,27 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 
+/**
+ * Step 7: Compose the final video by overlaying B-roll clips onto the A-roll.
+ *
+ * By the time this runs, all B-roll clips (including photos pre-rendered in
+ * step 5) are plain MP4 video files. No special photo handling needed here.
+ *
+ * Display style: Fit + Blurred Background
+ *   — Each B-roll is scaled to fit entirely within the canvas (no cropping).
+ *   — Any letterbox/pillarbox area is filled by a blurred copy of the same clip.
+ *   — No forced zoom on videos (photos already have Ken Burns baked in).
+ */
 function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
     if (!aRollPath) throw new Error("Missing A-Roll local path for composition");
     if (!fs.existsSync(aRollPath)) throw new Error("A-Roll local file not found: " + aRollPath);
 
-    // Step 1: Detect Durations
-    const { getDuration } = require('../utils/duration');
+    const { getDuration, getVideoSize } = require('../utils/duration');
     const aRollDuration = getDuration(aRollPath);
-    console.log(`[Compose] A-Roll Duration: ${aRollDuration.toFixed(2)}s`);
+    const { width: CW, height: CH } = getVideoSize(aRollPath);
+    console.log(`[Compose] A-Roll: ${aRollDuration.toFixed(2)}s @ ${CW}x${CH}`);
 
-    // Step 2: Build Input List & Sanitize Plan
+    // Build FFmpeg input list & sanitize each planned overlay
     const inputs = [`-i "${aRollPath}"`];
     const planWithInputs = [];
 
@@ -19,79 +30,78 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
         if (clip && clip.localPath && fs.existsSync(clip.localPath)) {
             const inputIdx = inputs.length;
 
-            if (clip.type === 'photo') {
-                // Loop the photo so it behaves like a video stream
-                inputs.push(`-loop 1 -framerate 30 -i "${clip.localPath}"`);
-            } else {
-                inputs.push(`-i "${clip.localPath}"`);
-            }
+            // Offset the input so the clip stream starts at its planned timestamp
+            inputs.push(`-itsoffset ${plan.startTime} -i "${clip.localPath}"`);
 
-            // Safety Check: Cap duration to the actual B-roll file length (if video)
-            const actualBrollDuration = clip.type === 'photo' ? plan.duration + 2 : getDuration(clip.localPath);
-            let sanitizedDuration = Math.min(plan.duration, actualBrollDuration);
+            // Cap duration to available clip length
+            const clipDuration = getDuration(clip.localPath);
+            let sanitizedDuration = Math.min(plan.duration, clipDuration);
 
-            // Safety Check: Ensure no overlay goes past A-roll end
+            // Never go past the end of the A-roll
             if (plan.startTime + sanitizedDuration > aRollDuration) {
                 sanitizedDuration = Math.max(0, aRollDuration - plan.startTime);
             }
 
             if (sanitizedDuration > 0) {
-                planWithInputs.push({ ...plan, inputIdx, duration: sanitizedDuration });
+                planWithInputs.push({ ...plan, inputIdx, duration: sanitizedDuration, clip });
             }
         }
     }
 
-    // Step 3: Build Filter Complex
+    // Build filter_complex: each clip → fit+blur composite → overlay on timeline
     let filterParts = [];
     let prevOutput = "[0:v]";
-    let brollLayerIdx = 1;
+    let layerIdx = 1;
 
     for (const plan of planWithInputs) {
-        const clip = brollsWithLocalPaths[plan.clipIndex];
         const scaledLabel = `scaled${plan.inputIdx}`;
-        const outLabel = `layer${brollLayerIdx}`;
+        const outLabel = `layer${layerIdx}`;
 
-        if (clip.type === 'photo') {
-            // Option B: Blurred Background + Full Fit with Zoom
-            const bgLabel = `bg${plan.inputIdx}`;
-            const fgLabel = `fg${plan.inputIdx}`;
-            const mergedLabel = `merged${plan.inputIdx}`;
+        const bgLabel = `bg${plan.inputIdx}`;
+        const fgLabel = `fg${plan.inputIdx}`;
+        const spLabel = `sp${plan.inputIdx}`;
 
-            // 1. Blurred, scaled-up background to fill 1080x1920
-            filterParts.push(
-                `[${plan.inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:2[${bgLabel}]`
-            );
-            // 2. Foreground photo fitted within 1080x1920 without cropping
-            filterParts.push(
-                `[${plan.inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=decrease[${fgLabel}]`
-            );
-            // 3. Merge them and apply a slow zoompan effect
-            filterParts.push(
-                `[${bgLabel}][${fgLabel}]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2[${mergedLabel}]`
-            );
-            filterParts.push(
-                `[${mergedLabel}]zoompan=z='zoom+0.001':x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':d=1:s=1080x1920:fps=30[${scaledLabel}]`
-            );
-        } else {
-            // Standard Video Handling
-            filterParts.push(
-                `[${plan.inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[${scaledLabel}]`
-            );
-        }
+        // 1. Split clip stream into two copies
+        filterParts.push(`[${plan.inputIdx}:v]split=2[${spLabel}a][${spLabel}b]`);
 
-        // Apply to main composition with eof_action=pass to prevent freezing on last frame!
+        // 2. Background: scale-up to cover canvas + crop + blur
         filterParts.push(
-            `${prevOutput}[${scaledLabel}]overlay=0:0:enable='between(t,${plan.startTime},${plan.startTime + plan.duration})':eof_action=pass[${outLabel}]`
+            `[${spLabel}a]` +
+            `scale=${CW}:${CH}:force_original_aspect_ratio=increase,` +
+            `crop=${CW}:${CH},` +
+            `boxblur=25:4` +
+            `[${bgLabel}]`
+        );
+
+        // 3. Foreground: fit (contain) within canvas, no cropping
+        filterParts.push(
+            `[${spLabel}b]` +
+            `scale=${CW}:${CH}:force_original_aspect_ratio=decrease,` +
+            `pad=${CW}:${CH}:(ow-iw)/2:(oh-ih)/2:black@0,` +
+            `setsar=1` +
+            `[${fgLabel}]`
+        );
+
+        // 4. Composite: blurred bg + sharp fg centered
+        filterParts.push(
+            `[${bgLabel}][${fgLabel}]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2[${scaledLabel}]`
+        );
+
+        // 5. Layer onto main timeline
+        //    eof_action=pass: when the clip ends, it disappears cleanly (no freeze)
+        filterParts.push(
+            `${prevOutput}[${scaledLabel}]overlay=0:0:` +
+            `enable='between(t,${plan.startTime},${plan.startTime + plan.duration})':` +
+            `eof_action=pass[${outLabel}]`
         );
 
         prevOutput = `[${outLabel}]`;
-        brollLayerIdx++;
+        layerIdx++;
     }
 
     const filterComplex = filterParts.join("; ");
     const outputFilePath = `/tmp/final_${chatId || Date.now()}.mp4`;
 
-    // Step 3: Construct Full Command
     const ffmpegCommand = [
         "ffmpeg -y",
         inputs.join(" "),
@@ -101,13 +111,14 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
         "-c:v libx264 -preset superfast -crf 23",
         "-c:a aac -b:a 128k",
         "-movflags +faststart",
-        `-t ${aRollDuration}`, // Truncate to exact A-roll duration
+        `-t ${aRollDuration}`,
         `"${outputFilePath}"`
     ].filter(Boolean).join(" ");
 
-    // Step 4: Execute FFmpeg
+    console.log(`[Compose] Running FFmpeg...`);
+
     try {
-        execSync(ffmpegCommand, { timeout: 120000, stdio: 'pipe' });
+        execSync(ffmpegCommand, { timeout: 300000, stdio: 'pipe' });
     } catch (err) {
         throw new Error(`FFmpeg execution failed: ${err.stderr?.toString() || err.message}`);
     }

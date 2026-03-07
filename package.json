@@ -1,8 +1,8 @@
 {
   "name": "challenge-video-pipeline1",
   "version": "1.0.0",
-  "description": "Converts your voice note + photo + b-roll videos into a fully edited, AI-composed video — delivered back to you on Telegram.",
-  "main": "build.js",
+  "description": "Converts your voice note + photo + b-roll videos into a fully edited, AI-composed video.",
+  "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "test:local": "node src/test_local.js",

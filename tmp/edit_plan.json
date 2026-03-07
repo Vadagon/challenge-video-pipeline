@@ -1,26 +1,26 @@
 [
   {
-    "startTime": 4.1,
-    "duration": 4.9,
+    "startTime": 3,
+    "duration": 5,
     "clipIndex": 3,
-    "reason": "The speaker mentions 'working in a cafe right now', and this clip perfectly shows a remote work setup in a cafe with a laptop displaying code."
+    "reason": "Visually matches the line 'I'm working in a cafe right now' by showing a person working on a laptop with code in a cafe setting."
   },
   {
-    "startTime": 9.5,
+    "startTime": 8,
     "duration": 5,
     "clipIndex": 2,
-    "reason": "To illustrate the 'video generation tool' being worked on, this clip shows a first-person view of programming and development interfaces on a laptop."
+    "reason": "Directly illustrates 'working on a new feature called video generation tool' by showing a POV of a laptop with code and an AI video tool interface."
   },
   {
-    "startTime": 16,
-    "duration": 4.5,
+    "startTime": 14,
+    "duration": 4,
     "clipIndex": 0,
-    "reason": "The script mentions using a 'sample video like where you are'. This clip of a person walking through an airport serves as a perfect example of such a sample vlog-style video."
+    "reason": "Provides a perfect example for the line 'your sample video like where you are' by showing a selfie-style walking video."
   },
   {
-    "startTime": 21.8,
-    "duration": 5,
+    "startTime": 22,
+    "duration": 4,
     "clipIndex": 1,
-    "reason": "The speaker concludes by talking about creating a 'cool video' 'filled with b-roll'. This dynamic street-level clip of discovering a food stall is a great example of engaging b-roll."
+    "reason": "Shows a classic travel b-roll clip of a city street and cafe, which perfectly illustrates the result of a video 'filled with b-roll'."
   }
 ]

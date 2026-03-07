@@ -1,102 +1,105 @@
 [
   {
-    "url": "http://tmpfiles.org/dl/27634213/img_0513.mp4",
+    "url": "http://tmpfiles.org/dl/27638810/img_0513.mp4",
     "duration": 6.639002,
     "type": "video",
-    "description": "A low-angle, selfie-style video captures a young man with short, light brown hair and blue eyes walking through what appears to be an airport terminal or a large modern building. He is wearing a black t-shirt with a bag strap over his shoulder and looks directly at the camera with a neutral to serious expression as he walks. The background shows a white tiled ceiling with bright, circular recessed lights, creating a sense of being indoors in a large public space. The camera motion is consistent with someone walking and holding the phone, creating a candid, on-the-go feel.",
+    "description": "A low-angle, selfie-style video shows a young man with styled blonde hair and blue eyes walking through a brightly lit indoor space, likely an airport or a modern transit hub. He wears a black t-shirt and has a bag strap over his shoulder. As he moves forward, the background with its white tiled ceiling and recessed lights scrolls past. He maintains a neutral, direct gaze into the camera, giving the clip a candid and personal feel, as if documenting his journey.",
     "keywords": [
       "travel",
-      "airport",
-      "man",
-      "walking",
-      "selfie",
       "vlog",
+      "airport",
+      "walking",
+      "man",
+      "selfie",
       "journey",
-      "terminal",
       "candid"
     ],
-    "suggestedDuration": 3
+    "suggestedDuration": 3,
+    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/assets/dist/IMG_0513.mp4"
   },
   {
-    "url": "http://tmpfiles.org/dl/27634215/img_0520.mp4",
+    "url": "http://tmpfiles.org/dl/27638820/img_0520.mp4",
     "duration": 8.166667,
     "type": "video",
-    "description": "A vertical, point-of-view video captures a casual stroll along a city sidewalk, likely in Southeast Asia. The camera, initially showing the paved path, trees, and a sticker-covered red pole, pans and shakily zooms in on a lively outdoor eatery. Under a large umbrella, patrons sit at a table next to parked motorbikes. The focus of the shot becomes a bright yellow and red neon sign in the background that reads 'BÁNH MÌ'. The mood is candid and observational, like a travel discovery.",
+    "description": "A point-of-view video walking down a bustling city street in Vietnam. The camera zooms in on an outdoor cafe where people are eating and motorbikes are parked. The focus lands on a brightly lit yellow and red neon sign that reads 'BÁNH MÌ'. The person filming expresses excitement upon spotting the sign for the famous Vietnamese sandwich.",
     "keywords": [
-      "travel",
-      "Vietnam",
       "street food",
-      "banh mi",
+      "Vietnam",
+      "travel",
+      "Bánh Mì",
       "city life",
-      "sidewalk cafe",
+      "cafe",
+      "discovery",
       "urban",
-      "candid",
-      "point of view",
-      "discovery"
+      "street scene"
     ],
-    "suggestedDuration": 3
+    "suggestedDuration": 3,
+    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/assets/dist/IMG_0520.mp4"
   },
   {
-    "url": "http://tmpfiles.org/dl/27634217/img_0560.mp4",
+    "url": "http://tmpfiles.org/dl/27638828/img_0560.mp4",
     "duration": 11.8,
     "type": "video",
-    "description": "A first-person point-of-view video of a person working on a laptop outdoors, likely on a patio or at a cafe. The laptop screen displays a sequence of programming and development interfaces, including a web UI with video output, a workflow diagram, and a code editor in dark mode. The person's hand is visible on the keyboard. The clip ends with a fast, blurry whip-pan to the right, showing a railing, green foliage, and out-of-focus city lights, creating a dynamic feel.",
+    "description": "A first-person point-of-view video of a person working on a laptop outdoors on a patio. The laptop screen shows code, a web interface for an AI tool with a video player, and a workflow diagram. The person's hand is visible on the keyboard and trackpad. The setting is bright, with lush green plants in the background. The video ends with a quick pan away from the laptop, creating a motion blur of the green patio environment.",
     "keywords": [
       "coding",
-      "programming",
       "developer",
+      "working remotely",
       "laptop",
-      "work from anywhere",
-      "digital nomad",
       "tech",
-      "productivity",
-      "software development",
-      "outdoors"
+      "programming",
+      "AI",
+      "digital nomad",
+      "POV",
+      "patio",
+      "day in the life"
     ],
-    "suggestedDuration": 4
+    "suggestedDuration": 4,
+    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/assets/dist/IMG_0560.mp4"
   },
   {
-    "url": "http://tmpfiles.org/dl/27634220/photo_2026-03-0710.06.24.jpeg",
+    "url": "http://tmpfiles.org/dl/27638833/photo_2026-03-0710.06.24.jpeg",
     "duration": 5,
-    "type": "photo",
-    "description": "A first-person perspective shot of a productive and calm remote work session in a cafe. On a dark, rustic wooden table sits an open laptop displaying lines of programming code. Next to it are a notebook with handwritten notes, a glass bottle of water, and a glass of iced tea on a wooden a coaster. The table is set against a large window overlooking a leafy, residential street in what appears to be an Asian city, with trees, traditional lanterns, and ornate architecture visible outside.",
+    "type": "video",
+    "description": "A first-person perspective shot of a productive work session in a cozy cafe. An open laptop displaying lines of code sits in the center of a dark, rustic wooden table. To the left is a notebook with handwritten notes and a glass bottle of water. To the right is a glass of amber-colored iced tea on a wooden coaster. The scene looks out of a large window onto a leafy urban street, with trees, traditional lanterns, and buildings visible in the background, creating a calm and focused atmosphere.",
     "keywords": [
+      "working",
+      "coding",
       "remote work",
       "digital nomad",
-      "coding",
-      "programming",
-      "laptop",
       "cafe",
       "coffee shop",
-      "working",
+      "laptop",
+      "programming",
       "studying",
-      "productivity",
+      "focused",
+      "productive",
       "window view",
-      "calm",
-      "relaxing",
-      "travel"
+      "city life"
     ],
-    "suggestedDuration": 3
+    "suggestedDuration": 3,
+    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/tmp/photo_broll_3.mp4"
   },
   {
-    "url": "http://tmpfiles.org/dl/27634223/photo_2026-03-0710.06.26.jpeg",
+    "url": "http://tmpfiles.org/dl/27638836/photo_2026-03-0710.06.26.jpeg",
     "duration": 5,
-    "type": "photo",
-    "description": "A full-body mirror selfie of a slender, fit young man. He is shirtless, showing off his defined abs, and wears dark shorts and gray sneakers. He holds a smartphone to take the picture in a long, wood-framed mirror. The setting is a stylish bathroom or changing room, characterized by a striking wall of emerald green, fish-scale patterned tiles. The floor is a light wood-look tile, and another wall has a subtle bamboo print, contributing to a modern, spa-like mood. The overall feel is one of confident self-representation and fitness.",
+    "type": "video",
+    "description": "A full-body mirror selfie of a fit, young, shirtless man posing in a brightly lit, modern bathroom. He is looking into the camera, showcasing his toned abs. He wears black shorts and grey sneakers. The setting is visually striking, with a wall covered in vibrant, textured emerald green fish-scale tiles surrounding a large, wood-framed mirror.",
     "keywords": [
-      "man",
-      "selfie",
       "mirror selfie",
       "fitness",
       "abs",
-      "shirtless",
       "workout",
-      "body positivity",
+      "gym progress",
+      "body transformation",
+      "confident",
+      "man",
       "bathroom",
       "stylish",
       "interior design",
-      "progress pic"
+      "tiles"
     ],
-    "suggestedDuration": 3
+    "suggestedDuration": 3,
+    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/tmp/photo_broll_4.mp4"
   }
 ]

@@ -224,7 +224,7 @@ async function runLocalTest() {
         const brollDescriptionFile = path.join(tmpDir, 'broll_descriptions.json');
 
         if (stepToRun === null || stepToRun === 4) {
-            console.log('\n[4/7] 👁️ Describing B-Roll clips...');
+            console.log('\n[4/8] 👁️ Describing B-Roll clips...');
             const { describeBRolls } = require('./pipeline/analyzeBroll');
             const brollClips = bRollUris; // Now already includes objects with {url, duration}
             brolls = await describeBRolls(brollClips);
@@ -234,11 +234,30 @@ async function runLocalTest() {
             brolls = JSON.parse(fs.readFileSync(brollDescriptionFile, 'utf8'));
         }
 
+        // Map local paths back to brolls (needed for step 5 render and step 7 compose)
+        if (brolls) {
+            brolls.forEach((b, i) => {
+                b.localPath = getBRollPath(i);
+            });
+        }
+
+        if (stepToRun === null || stepToRun === 5) {
+            console.log('\n[5/8] 🖼️ Pre-rendering photo B-rolls as video clips...');
+            const { renderPhotoBrolls } = require('./pipeline/renderPhotoBrolls');
+            const { getVideoSize } = require('./utils/duration');
+            const canvas = fs.existsSync(aRollLocal) ? getVideoSize(aRollLocal) : { width: 1080, height: 1920 };
+            brolls = await renderPhotoBrolls(brolls, tmpDir, canvas);
+            // Persist updated localPaths (type changed from 'photo' → 'video')
+            const updatedDescFile = brollDescriptionFile;
+            fs.writeFileSync(updatedDescFile, JSON.stringify(brolls, null, 2));
+            console.log(`Photo B-rolls rendered and saved back to tmp/broll_descriptions.json`);
+        }
+
         let editPlan;
         const editPlanFile = path.join(tmpDir, 'edit_plan.json');
 
-        if (stepToRun === null || stepToRun === 5) {
-            console.log('\n[5/7] 🧠 Planning Edit...');
+        if (stepToRun === null || stepToRun === 6) {
+            console.log('\n[6/8] 🧠 Planning Edit...');
             const { planEdit } = require('./pipeline/analyzeBroll');
             editPlan = await planEdit(brolls, transcription);
             fs.writeFileSync(editPlanFile, JSON.stringify(editPlan, null, 2));
@@ -247,17 +266,10 @@ async function runLocalTest() {
             editPlan = JSON.parse(fs.readFileSync(editPlanFile, 'utf8'));
         }
 
-        // Map local paths back to brolls for composition
-        if (brolls) {
-            brolls.forEach((b, i) => {
-                b.localPath = getBRollPath(i);
-            });
-        }
-
         let finalVideoPath = path.join(tmpDir, 'final_video.mp4');
 
-        if (stepToRun === null || stepToRun === 6) {
-            console.log('\n[6/7] 🎬 Composing final video...');
+        if (stepToRun === null || stepToRun === 7) {
+            console.log('\n[7/8] 🎬 Composing final video...');
             const finalVideoSystemPath = await composeVideo(chatId, aRollLocal, brolls, editPlan);
             fs.copyFileSync(finalVideoSystemPath, finalVideoPath);
             console.log('Final Video Saved ->', finalVideoPath);
@@ -266,8 +278,8 @@ async function runLocalTest() {
         let viralCaption;
         const captionFile = path.join(tmpDir, 'caption.txt');
 
-        if (stepToRun === null || stepToRun === 7) {
-            console.log('\n[7/7] ✍️ Generating viral caption...');
+        if (stepToRun === null || stepToRun === 8) {
+            console.log('\n[8/8] ✍️ Generating viral caption...');
             viralCaption = await generateCaption(rawCaption, transcription);
             fs.writeFileSync(captionFile, viralCaption);
             console.log('\n--- FINAL CAPTION ---');
