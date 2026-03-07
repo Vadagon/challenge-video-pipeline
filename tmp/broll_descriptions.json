@@ -1,67 +1,101 @@
 [
   {
-    "url": "http://tmpfiles.org/dl/27632708/img_0513.mp4",
+    "url": "http://tmpfiles.org/dl/27634213/img_0513.mp4",
     "duration": 6.639002,
-    "description": "A low-angle, selfie-style shot of a young man with short, textured blond hair and blue eyes walking through an airport terminal or a large public building. He wears a black t-shirt and has a bag strap over his shoulder. He looks directly at the camera with a neutral, slightly tired expression as he moves. The background shows a white tiled ceiling with bright, recessed lights, giving the scene a typical, impersonal travel hub feel.",
+    "type": "video",
+    "description": "A low-angle, selfie-style video captures a young man with short, light brown hair and blue eyes walking through what appears to be an airport terminal or a large modern building. He is wearing a black t-shirt with a bag strap over his shoulder and looks directly at the camera with a neutral to serious expression as he walks. The background shows a white tiled ceiling with bright, circular recessed lights, creating a sense of being indoors in a large public space. The camera motion is consistent with someone walking and holding the phone, creating a candid, on-the-go feel.",
     "keywords": [
+      "travel",
+      "airport",
       "man",
       "walking",
-      "airport",
-      "travel",
       "selfie",
+      "vlog",
+      "journey",
       "terminal",
-      "vlog style",
-      "candid",
-      "on the go"
+      "candid"
     ],
     "suggestedDuration": 3
   },
   {
-    "url": "http://tmpfiles.org/dl/27632714/img_0520.mp4",
+    "url": "http://tmpfiles.org/dl/27634215/img_0520.mp4",
     "duration": 8.166667,
-    "description": "A point-of-view, handheld shot pans and zooms down a bustling city street in what appears to be Vietnam. The camera focuses on a lively outdoor food stall where patrons are seated at tables under umbrellas. The shot zeroes in on a glowing yellow neon sign that reads 'BÁNH MÌ', prompting an excited exclamation from the person filming. The mood is one of casual travel and joyful foodie discovery.",
+    "type": "video",
+    "description": "A vertical, point-of-view video captures a casual stroll along a city sidewalk, likely in Southeast Asia. The camera, initially showing the paved path, trees, and a sticker-covered red pole, pans and shakily zooms in on a lively outdoor eatery. Under a large umbrella, patrons sit at a table next to parked motorbikes. The focus of the shot becomes a bright yellow and red neon sign in the background that reads 'BÁNH MÌ'. The mood is candid and observational, like a travel discovery.",
     "keywords": [
-      "Banh Mi",
+      "travel",
       "Vietnam",
       "street food",
-      "travel",
+      "banh mi",
       "city life",
-      "foodie",
-      "neon sign"
+      "sidewalk cafe",
+      "urban",
+      "candid",
+      "point of view",
+      "discovery"
     ],
     "suggestedDuration": 3
   },
   {
-    "url": "http://tmpfiles.org/dl/27632716/img_0559.mp4",
-    "duration": 3.156009,
-    "description": "A point-of-view shot of a person's left hand hovering over a laptop keyboard with both Latin and Cyrillic characters. The laptop screen is on, displaying a coding interface on the left side and a video player on the right. The video playing shows a woman in a softly lit, atmospheric setting. The overall mood is focused and productive, related to tech, development, or creative work.",
-    "keywords": [
-      "coding",
-      "programming",
-      "laptop",
-      "working",
-      "developer",
-      "tech",
-      "keyboard",
-      "video editing",
-      "remote work",
-      "cyrillic"
-    ],
-    "suggestedDuration": 3
-  },
-  {
-    "url": "http://tmpfiles.org/dl/27632718/img_0560.mp4",
+    "url": "http://tmpfiles.org/dl/27634217/img_0560.mp4",
     "duration": 11.8,
-    "description": "A first-person point-of-view shot of a person working on a laptop in an outdoor setting. The screen displays lines of code and a user interface. The camera then performs a quick, sweeping pan to the right, revealing a vibrant, green environment with a wooden trellis covered in vines, and blurred city lights in the background, conveying a productive, 'work from anywhere' atmosphere.",
+    "type": "video",
+    "description": "A first-person point-of-view video of a person working on a laptop outdoors, likely on a patio or at a cafe. The laptop screen displays a sequence of programming and development interfaces, including a web UI with video output, a workflow diagram, and a code editor in dark mode. The person's hand is visible on the keyboard. The clip ends with a fast, blurry whip-pan to the right, showing a railing, green foliage, and out-of-focus city lights, creating a dynamic feel.",
     "keywords": [
       "coding",
-      "developer",
-      "work from anywhere",
-      "laptop",
-      "digital nomad",
       "programming",
+      "developer",
+      "laptop",
+      "work from anywhere",
+      "digital nomad",
       "tech",
-      "outdoor cafe"
+      "productivity",
+      "software development",
+      "outdoors"
+    ],
+    "suggestedDuration": 4
+  },
+  {
+    "url": "http://tmpfiles.org/dl/27634220/photo_2026-03-0710.06.24.jpeg",
+    "duration": 5,
+    "type": "photo",
+    "description": "A first-person perspective shot of a productive and calm remote work session in a cafe. On a dark, rustic wooden table sits an open laptop displaying lines of programming code. Next to it are a notebook with handwritten notes, a glass bottle of water, and a glass of iced tea on a wooden a coaster. The table is set against a large window overlooking a leafy, residential street in what appears to be an Asian city, with trees, traditional lanterns, and ornate architecture visible outside.",
+    "keywords": [
+      "remote work",
+      "digital nomad",
+      "coding",
+      "programming",
+      "laptop",
+      "cafe",
+      "coffee shop",
+      "working",
+      "studying",
+      "productivity",
+      "window view",
+      "calm",
+      "relaxing",
+      "travel"
+    ],
+    "suggestedDuration": 3
+  },
+  {
+    "url": "http://tmpfiles.org/dl/27634223/photo_2026-03-0710.06.26.jpeg",
+    "duration": 5,
+    "type": "photo",
+    "description": "A full-body mirror selfie of a slender, fit young man. He is shirtless, showing off his defined abs, and wears dark shorts and gray sneakers. He holds a smartphone to take the picture in a long, wood-framed mirror. The setting is a stylish bathroom or changing room, characterized by a striking wall of emerald green, fish-scale patterned tiles. The floor is a light wood-look tile, and another wall has a subtle bamboo print, contributing to a modern, spa-like mood. The overall feel is one of confident self-representation and fitness.",
+    "keywords": [
+      "man",
+      "selfie",
+      "mirror selfie",
+      "fitness",
+      "abs",
+      "shirtless",
+      "workout",
+      "body positivity",
+      "bathroom",
+      "stylish",
+      "interior design",
+      "progress pic"
     ],
     "suggestedDuration": 3
   }

@@ -83,6 +83,7 @@ async function runLocalTest() {
     const allEntries = fs.readdirSync(assetsDir, { withFileTypes: true });
     const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
     const audioExtensions = ['.mp3', '.ogg', '.wav', '.m4a', '.aac'];
+    const photoExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
 
     const rawVideos = allEntries
         .filter(e => !e.isDirectory() && videoExtensions.includes(path.extname(e.name).toLowerCase()))
@@ -90,13 +91,16 @@ async function runLocalTest() {
     const rawAudios = allEntries
         .filter(e => !e.isDirectory() && audioExtensions.includes(path.extname(e.name).toLowerCase()))
         .map(e => path.join(assetsDir, e.name));
+    const rawPhotos = allEntries
+        .filter(e => !e.isDirectory() && photoExtensions.includes(path.extname(e.name).toLowerCase()))
+        .map(e => path.join(assetsDir, e.name));
 
     if (rawVideos.length === 0) throw new Error("No video files found in assets/");
     if (rawAudios.length === 0) throw new Error("No audio files found in assets/");
 
     // 1st video is A-roll, rest are B-rolls
     const rawARollFile = rawVideos[0];
-    const rawBRollFiles = rawVideos.slice(1);
+    const rawBRollFiles = [...rawVideos.slice(1), ...rawPhotos];
     const rawAudioFile = rawAudios[0];
 
     // Normalized output paths (in assets/dist/)
@@ -104,7 +108,13 @@ async function runLocalTest() {
     const aRollSourceFile = path.join(distDir, path.basename(rawARollFile, path.extname(rawARollFile)) + '.mp4');
 
     // We'll generate b-roll local paths dynamically in assets/dist/
-    const getBRollPath = (i) => path.join(distDir, path.basename(rawBRollFiles[i], path.extname(rawBRollFiles[i])) + '.mp4');
+    const getBRollPath = (i) => {
+        const file = rawBRollFiles[i];
+        if (photoExtensions.includes(path.extname(file).toLowerCase())) {
+            return path.join(distDir, path.basename(file));
+        }
+        return path.join(distDir, path.basename(file, path.extname(file)) + '.mp4');
+    };
 
     console.log(`--- Starting Local Pipeline Test (Step: ${stepToRun !== null ? stepToRun : 'ALL'}) ---`);
     console.log(`Found ${rawVideos.length} videos and ${rawAudios.length} audios.`);
@@ -129,9 +139,15 @@ async function runLocalTest() {
             await convertToMp4(rawARollFile, aRollSourceFile);
 
             for (let i = 0; i < rawBRollFiles.length; i++) {
+                const file = rawBRollFiles[i];
                 const outPath = getBRollPath(i);
-                console.log(`  -> Normalizing B-Roll ${i}: ${path.basename(rawBRollFiles[i])} → ${path.basename(outPath)}...`);
-                await convertToMp4(rawBRollFiles[i], outPath);
+                if (photoExtensions.includes(path.extname(file).toLowerCase())) {
+                    console.log(`  -> Copying Photo B-Roll ${i}: ${path.basename(file)} → ${path.basename(outPath)}...`);
+                    fs.copyFileSync(file, outPath);
+                } else {
+                    console.log(`  -> Normalizing Video B-Roll ${i}: ${path.basename(file)} → ${path.basename(outPath)}...`);
+                    await convertToMp4(file, outPath);
+                }
             }
 
             console.log('  -> Uploading voice note...');
@@ -140,11 +156,16 @@ async function runLocalTest() {
             console.log('  -> Uploading A-Roll video...');
             aRollSourceUri = await fileToPublicUrl(aRollSourceFile);
 
-            console.log('  -> Uploading B-Roll videos...');
+            console.log('  -> Uploading B-Roll media...');
             for (let i = 0; i < rawBRollFiles.length; i++) {
                 const lp = getBRollPath(i);
                 const uri = await fileToPublicUrl(lp);
-                bRollUris.push({ url: uri, duration: getDuration(lp) });
+                const isPhoto = photoExtensions.includes(path.extname(lp).toLowerCase());
+                bRollUris.push({
+                    url: uri,
+                    duration: isPhoto ? 5 : getDuration(lp),
+                    type: isPhoto ? 'photo' : 'video'
+                });
             }
 
             const payload = {

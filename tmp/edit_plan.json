@@ -1,26 +1,26 @@
 [
   {
-    "startTime": 4,
-    "duration": 5,
+    "startTime": 4.1,
+    "duration": 4.9,
     "clipIndex": 3,
-    "reason": "The speaker says 'I'm working in a cafe right now, working on a new feature', and this clip perfectly illustrates someone coding on a laptop in an outdoor cafe setting."
+    "reason": "The speaker mentions 'working in a cafe right now', and this clip perfectly shows a remote work setup in a cafe with a laptop displaying code."
   },
   {
-    "startTime": 11,
+    "startTime": 9.5,
     "duration": 5,
-    "clipIndex": 0,
-    "reason": "To illustrate the phrase 'your sample video like where you are', this selfie-style clip of a person walking through an airport serves as a perfect example of a user-provided 'sample video'."
+    "clipIndex": 2,
+    "reason": "To illustrate the 'video generation tool' being worked on, this clip shows a first-person view of programming and development interfaces on a laptop."
   },
   {
     "startTime": 16,
-    "duration": 3.2,
-    "clipIndex": 2,
-    "reason": "As the speaker mentions 'generates, makes lip sync video', this clip shows the technical side, with code on one side and a video playing on the other, visualizing the generation process."
+    "duration": 4.5,
+    "clipIndex": 0,
+    "reason": "The script mentions using a 'sample video like where you are'. This clip of a person walking through an airport serves as a perfect example of such a sample vlog-style video."
   },
   {
-    "startTime": 24,
+    "startTime": 21.8,
     "duration": 5,
     "clipIndex": 1,
-    "reason": "The speaker says 'you have like a b-roll, filled with b-roll, cool video', and this vibrant, exciting street food clip is a prime example of engaging b-roll content."
+    "reason": "The speaker concludes by talking about creating a 'cool video' 'filled with b-roll'. This dynamic street-level clip of discovering a food stall is a great example of engaging b-roll."
   }
 ]

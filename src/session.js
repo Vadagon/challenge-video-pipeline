@@ -37,10 +37,11 @@ async function handleUpdate(update) {
         return { skip: true, reason: 'waiting for step 2' };
     }
 
-    // ── STEP 2: Accumulate Caption + Videos ──────────────────────────────────
+    // ── STEP 2: Accumulate Caption + Videos/Photos ───────────────────────────
     if (session.step === 1) {
         const currentCaption = message.caption || message.text || "";
         const video = message.video;
+        const photo = message.photo && message.photo.length > 0 ? message.photo[message.photo.length - 1] : null;
 
         let updated = false;
 
@@ -50,13 +51,22 @@ async function handleUpdate(update) {
             updated = true;
         }
 
-        // 2. Accumulate Video
+        // 2. Accumulate Media (Videos and Photos)
+        if (!session.videos) session.videos = [];
+
         if (video) {
             const videoUrl = await telegram.getFileUrl(video.file_id);
-
-            if (!session.videos) session.videos = [];
             if (!session.videos.find(v => v.fileId === video.file_id)) {
-                session.videos.push({ fileId: video.file_id, url: videoUrl, duration: video.duration });
+                session.videos.push({ fileId: video.file_id, url: videoUrl, duration: video.duration, type: "video" });
+                updated = true;
+            }
+        }
+
+        if (photo) {
+            const photoUrl = await telegram.getFileUrl(photo.file_id);
+            if (!session.videos.find(v => v.fileId === photo.file_id)) {
+                // Default duration for a photo is 5 seconds
+                session.videos.push({ fileId: photo.file_id, url: photoUrl, duration: 5, type: "photo" });
                 updated = true;
             }
         }
@@ -65,16 +75,16 @@ async function handleUpdate(update) {
         sessions[chatId] = session;
 
         const hasCaption = !!session.caption;
-        const videoCount = (session.videos || []).length;
-        const hasEnoughVideos = videoCount >= 2;
+        const mediaCount = (session.videos || []).length;
+        const hasEnoughMedia = mediaCount >= 2;
 
-        if (hasCaption && hasEnoughVideos) {
+        if (hasCaption && hasEnoughMedia) {
             session.step = 2; // Move to "processing" state
             sessions[chatId] = session;
 
             await telegram.sendMessage(
                 chatId,
-                `⚙️ All assets received (${videoCount} videos)! Starting generation pipeline...\n\nThis may take a few minutes ☕`
+                `⚙️ All assets received (${mediaCount} media items)! Starting generation pipeline...\n\nThis may take a few minutes ☕`
             );
 
             return {
@@ -89,16 +99,16 @@ async function handleUpdate(update) {
         if (updated && !message.media_group_id) {
             const missing = [];
             if (!hasCaption) missing.push("📝 caption");
-            if (videoCount === 0) missing.push("🎬 main video (A-roll)");
-            if (videoCount === 1) missing.push("🎬 b-roll clips");
+            if (mediaCount === 0) missing.push("🎬 main video (A-roll)");
+            if (mediaCount === 1) missing.push("📸 b-roll clips (video or photo)");
 
             await telegram.sendMessage(
                 chatId,
-                `📥 Received ${videoCount} video(s). Still missing: ${missing.join(", ")}.`
+                `📥 Received ${mediaCount} media item(s). Still missing: ${missing.join(", ")}.`
             );
         }
 
-        return { skip: true, reason: 'collecting assets', hasCaption, videoCount };
+        return { skip: true, reason: 'collecting assets', hasCaption, mediaCount };
     }
 
     // ── DEFAULT: Unexpected State Reset ───────────────────────────────────────

@@ -1,24 +1,33 @@
 {
-  "audioUri": "http://tmpfiles.org/dl/27632697/2026-03-0709.48.26.mp3",
+  "audioUri": "http://tmpfiles.org/dl/27634206/2026-03-0709.48.26.mp3",
   "audioDuration": 36.053515,
-  "aRollSourceUri": "http://tmpfiles.org/dl/27632704/img_0497.mp4",
+  "aRollSourceUri": "http://tmpfiles.org/dl/27634210/img_0497.mp4",
   "aRollSourceDuration": 5.85,
   "bRollUris": [
     {
-      "url": "http://tmpfiles.org/dl/27632708/img_0513.mp4",
-      "duration": 6.639002
+      "url": "http://tmpfiles.org/dl/27634213/img_0513.mp4",
+      "duration": 6.639002,
+      "type": "video"
     },
     {
-      "url": "http://tmpfiles.org/dl/27632714/img_0520.mp4",
-      "duration": 8.166667
+      "url": "http://tmpfiles.org/dl/27634215/img_0520.mp4",
+      "duration": 8.166667,
+      "type": "video"
     },
     {
-      "url": "http://tmpfiles.org/dl/27632716/img_0559.mp4",
-      "duration": 3.156009
+      "url": "http://tmpfiles.org/dl/27634217/img_0560.mp4",
+      "duration": 11.8,
+      "type": "video"
     },
     {
-      "url": "http://tmpfiles.org/dl/27632718/img_0560.mp4",
-      "duration": 11.8
+      "url": "http://tmpfiles.org/dl/27634220/photo_2026-03-0710.06.24.jpeg",
+      "duration": 5,
+      "type": "photo"
+    },
+    {
+      "url": "http://tmpfiles.org/dl/27634223/photo_2026-03-0710.06.26.jpeg",
+      "duration": 5,
+      "type": "photo"
     }
   ]
 }

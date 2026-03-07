@@ -18,10 +18,16 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
         const clip = brollsWithLocalPaths[plan.clipIndex];
         if (clip && clip.localPath && fs.existsSync(clip.localPath)) {
             const inputIdx = inputs.length;
-            inputs.push(`-i "${clip.localPath}"`);
 
-            // Safety Check: Cap duration to the actual B-roll file length
-            const actualBrollDuration = getDuration(clip.localPath);
+            if (clip.type === 'photo') {
+                // Loop the photo so it behaves like a video stream
+                inputs.push(`-loop 1 -framerate 30 -i "${clip.localPath}"`);
+            } else {
+                inputs.push(`-i "${clip.localPath}"`);
+            }
+
+            // Safety Check: Cap duration to the actual B-roll file length (if video)
+            const actualBrollDuration = clip.type === 'photo' ? plan.duration + 2 : getDuration(clip.localPath);
             let sanitizedDuration = Math.min(plan.duration, actualBrollDuration);
 
             // Safety Check: Ensure no overlay goes past A-roll end
@@ -41,15 +47,41 @@ function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
     let brollLayerIdx = 1;
 
     for (const plan of planWithInputs) {
+        const clip = brollsWithLocalPaths[plan.clipIndex];
         const scaledLabel = `scaled${plan.inputIdx}`;
         const outLabel = `layer${brollLayerIdx}`;
 
-        filterParts.push(
-            `[${plan.inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[${scaledLabel}]`
-        );
+        if (clip.type === 'photo') {
+            // Option B: Blurred Background + Full Fit with Zoom
+            const bgLabel = `bg${plan.inputIdx}`;
+            const fgLabel = `fg${plan.inputIdx}`;
+            const mergedLabel = `merged${plan.inputIdx}`;
 
+            // 1. Blurred, scaled-up background to fill 1080x1920
+            filterParts.push(
+                `[${plan.inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:2[${bgLabel}]`
+            );
+            // 2. Foreground photo fitted within 1080x1920 without cropping
+            filterParts.push(
+                `[${plan.inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=decrease[${fgLabel}]`
+            );
+            // 3. Merge them and apply a slow zoompan effect
+            filterParts.push(
+                `[${bgLabel}][${fgLabel}]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2[${mergedLabel}]`
+            );
+            filterParts.push(
+                `[${mergedLabel}]zoompan=z='zoom+0.001':x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':d=1:s=1080x1920:fps=30[${scaledLabel}]`
+            );
+        } else {
+            // Standard Video Handling
+            filterParts.push(
+                `[${plan.inputIdx}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[${scaledLabel}]`
+            );
+        }
+
+        // Apply to main composition with eof_action=pass to prevent freezing on last frame!
         filterParts.push(
-            `${prevOutput}[${scaledLabel}]overlay=0:0:enable='between(t,${plan.startTime},${plan.startTime + plan.duration})'[${outLabel}]`
+            `${prevOutput}[${scaledLabel}]overlay=0:0:enable='between(t,${plan.startTime},${plan.startTime + plan.duration})':eof_action=pass[${outLabel}]`
         );
 
         prevOutput = `[${outLabel}]`;

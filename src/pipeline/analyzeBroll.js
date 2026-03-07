@@ -34,9 +34,9 @@ async function describeBRolls(brollClips) {
                                 content: [
                                     {
                                         type: "text",
-                                        text: `You are analyzing a b-roll video clip for a social media video editor.
-Describe the following video clip in detail.
-Topics: mood, setting, visual content, and duration.
+                                        text: `You are analyzing a b-roll media item (video clip or photo) for a social media video editor.
+Describe the following media in detail.
+Topics: mood, setting, visual content. If it's a video, also mention motion.
 
 Return ONLY a valid JSON object:
 {
@@ -46,8 +46,8 @@ Return ONLY a valid JSON object:
 }`
                                     },
                                     {
-                                        type: "video_url",
-                                        videoUrl: {
+                                        type: vid.type === "photo" ? "image_url" : "video_url",
+                                        [vid.type === "photo" ? "imageUrl" : "videoUrl"]: {
                                             url: vid.url
                                         }
                                     }
