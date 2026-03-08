@@ -1,6 +1,6 @@
 # 🎬 Telegram → AI Video Pipeline
 
-Converts your voice note + photo + b-roll videos into a fully edited, AI-composed video — delivered back to you on Telegram.
+Converts your voice note + video + b-roll clips into a fully edited, AI-composed short-form video — delivered back to you on Telegram.
 
 ---
 
@@ -8,17 +8,26 @@ Converts your voice note + photo + b-roll videos into a fully edited, AI-compose
 
 ```
 challenge-video-pipeline1/
-├── src/                           # Source JS files
-│   ├── server.js                  # Main Express / Polling Server
-│   ├── session.js                 # Session Manager
-│   ├── telegram.js                # Telegram API helpers
+├── src/
+│   ├── server.js                  # Express health-check + Telegram polling entry point
+│   ├── session.js                 # Conversational session state machine
+│   ├── telegram.js                # Telegram Bot API helpers (send, getFile, long polling)
 │   ├── pipeline/                  # Core video pipeline steps
-│   │   ├── transcribe.js          # Transcribes voice note via Replicate Whisper
-│   │   ├── generateAroll.js       # Generates lip-sync video via Replicate Pixverse
-│   │   ├── analyzeBroll.js        # Analyzes b-roll clips, creates edit plan with GPT-4o
-│   │   ├── composeVideo.js        # Composes final video with b-roll via local FFmpeg
-│   │   └── generateCaption.js     # Generates viral caption, sends video to Telegram
-│   └── test_local.js              # Standalone local test runner
+│   │   ├── transcribe.js          # Voice note → text via Replicate WhisperX
+│   │   ├── generateAroll.js       # Lip-sync video via Replicate Pixverse
+│   │   ├── analyzeBroll.js        # Describe B-rolls + plan edit with Gemini 2.5 Pro
+│   │   ├── renderPhotoBrolls.js   # Pre-render photo B-rolls as Ken Burns video clips
+│   │   ├── composeVideo.js        # Final FFmpeg composition (A-roll + B-roll overlays)
+│   │   └── generateCaption.js     # Viral caption generation via GPT-4o
+│   ├── utils/
+│   │   ├── cleanup.js             # Temp file cleanup
+│   │   ├── download.js            # File downloader (URL → disk)
+│   │   ├── duration.js            # FFprobe duration / video size helpers
+│   │   └── retry.js               # Retry wrapper with exponential backoff
+│   └── test_local.js              # Standalone local test runner (step-by-step)
+├── assets/                        # Test media for local testing
+├── Dockerfile                     # Production container (Node 20 + FFmpeg)
+├── package.json
 └── README.md
 ```
 
@@ -31,151 +40,133 @@ challenge-video-pipeline1/
 npm install
 ```
 
-### 2. Configure Environment variables
-Create a `.env` file in the root with your API keys:
+### 2. Configure Environment Variables
+Create a `.env` file in the root:
 ```env
-TELEGRAM_BOT_TOKEN=8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc
-REPLICATE_API_TOKEN=r8_cYkGtnlW5dT9h0e6aThUBTtP1mhZ3Y33AgHUy
-OPENROUTER_API_KEY=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
+PORT=3000
+TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+REPLICATE_API_TOKEN=your-replicate-api-token
+OPENROUTER_API_KEY=your-openrouter-api-key
 ```
 
-### 3. Start the Server (Local)
+### 3. Start the Bot (Local)
 
-Ensure you have `ffmpeg` installed locally on your system.
+Ensure you have `ffmpeg` installed locally.
 ```bash
 npm start
 ```
-The bot will begin polling for Telegram messages.
+The bot immediately starts polling Telegram for messages — no webhook or public URL needed.
 
 ---
 
 ## ☁️ Deploying to Railway
 
-This project is fully ready to be deployed to [Railway.app](https://railway.app/).
-Since the video composition uses local FFmpeg, the included `Dockerfile` ensures it is installed in the hosting environment automatically.
+This project is fully ready for [Railway.app](https://railway.app/).
 
 1. Create a new service on Railway and connect your GitHub repository.
-2. Railway will automatically detect the `Dockerfile` and build the container with FFmpeg included.
-3. In your Railway project, go to the **Variables** tab for the service and add your `TELEGRAM_BOT_TOKEN`, `REPLICATE_API_TOKEN`, and `OPENROUTER_API_KEY`.
-4. Deploy! The bot will begin polling for Telegram messages from the cloud.
+2. Railway auto-detects the `Dockerfile` and builds the container with FFmpeg.
+3. In the **Variables** tab, add: `TELEGRAM_BOT_TOKEN`, `REPLICATE_API_TOKEN`, `OPENROUTER_API_KEY`.
+4. Deploy! The bot starts polling Telegram from the cloud.
+
+> The Express server on `PORT` responds with `200 OK` on `GET /` for Railway health checks.
 
 ---
 
-## 📱 How to Use (Telegram)
+## 📱 How to Use (Telegram Bot)
 
-### Message 1 — Voice Note
-Send a voice recording of yourself speaking to the bot.  
-The bot will confirm receipt and ask for the next message.
+### Step 1 — Send A-Roll (voice note + video)
+Send the bot:
+- 🎙️ A **voice note** (your narration / speech)
+- 🎬 A **video of yourself** (used for AI lip-sync)
 
-### Message 2 — Caption + Photo + Video(s)
-Send a message with:
-- **Caption text** (your rough idea for the video caption)
-- **A photo of yourself** (used for the AI lip-sync a-roll)
-- **One or more video clips** (your b-roll footage)
+These can arrive in any order or in the same message. The bot tracks what's missing and prompts you.
 
-> 💡 Telegram only allows one media per message. If you have multiple videos, send them as separate messages *after* the photo+caption message. The bot accumulates them until you have at least 1 video + 1 photo.
+### Step 2 — Bot Confirms
+Once both are received, the bot replies:
+> ✅ A-roll media is collected - send b-rolls now 🎥📸
+
+### Step 3 — Send B-Rolls
+Send **photos and/or video clips** as B-roll footage. You can send them individually or as an album. The bot waits 4 seconds after the last item, then automatically starts the pipeline.
 
 ### Result
 Within a few minutes, the bot sends back:
-- 🎬 The final edited video
+- 🎬 The final edited video with B-roll overlays
 - 📝 AI-generated viral caption with hashtags
-- 📋 The edit plan showing where each b-roll was inserted
 
 ---
 
 ## 🔄 Pipeline Flow
 
 ```
-Telegram Voice Note
-       ↓
-[Session Manager] — saves audioUrl to session
-       ↓
-Telegram Caption + Photo + Videos
-       ↓
-[Session Manager] — assembles all assets, triggers pipeline
-       ↓
-[Transcribe Audio] — Whisper via Replicate
-       ↓
-[Generate A-Roll] — Pixverse lip-sync via Replicate (video + audio → talking video)
-       ↓
-[Analyze B-Roll] — GPT-4o describes each clip, plans insertion timestamps
-       ↓
-[Compose Video] — fal.ai FFmpeg overlays b-roll onto a-roll
-       ↓
-[Generate Caption & Send] — GPT-4o writes viral caption → Telegram
+[Telegram Bot Polling]
+       │
+       ▼
+[Session Manager]  ─── Step 0: Collect voice + A-roll video
+       │                Step 1: Confirm → "send b-rolls now"
+       │                Step 2: Collect B-rolls (4s debounce)
+       ▼
+[1. Transcribe Audio]      ── WhisperX via Replicate
+       ▼
+[2. Generate A-Roll]       ── Pixverse lip-sync via Replicate
+       ▼
+[3. Download A-Roll]       ── Download to /tmp
+       ▼
+[4. Analyze B-Rolls]       ── Gemini 2.5 Pro describes clips + plans edit
+       ▼
+[5. Download B-Rolls]      ── Download to /tmp
+       ▼
+[6. Render Photo B-Rolls]  ── FFmpeg Ken Burns animation (photos → video)
+       ▼
+[7. Compose Video]         ── FFmpeg overlays B-rolls onto A-roll
+       ▼
+[8. Generate Caption]      ── GPT-4o writes viral caption
+       ▼
+[9. Send Result]           ── Upload video + caption to Telegram
 ```
-
----
-
-## 🔑 API Keys (hardcoded)
-
-| Service | Key |
-|---------|-----|
-| Telegram Bot | `8754596174:AAHVBRlpbtevRd0Lo55dK1rlleIyXJ6bXfc` |
-| Replicate | `r8_cYkGtnlW5dT9h0e6aThUBTtP1mhZ3Y33AgHUy` |
-| OpenRouter | `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` |
-
----
-
-## ✏️ Modifying Code
-
-Edit any file in `src/`, then restart the server:
-```bash
-npm start
-```
-
----
-
-## ⚠️ Notes
-
-- Video compositing is done locally using FFmpeg. When deploying to platforms like Railway, the included `Dockerfile` installs FFmpeg automatically for you.
-- Replicate Whisper (`openai/whisper`) transcribes the Telegram voice note by URL — no download required.
-- Replicate Pixverse (`pixverse/lipsync`) generates the lip-synced A-roll video.
-- Session state is kept in memory by `session.js` over the course of the bot interaction.
-- Telegram only sends one media item per message payload. For multiple b-roll videos or photos, the session manager accumulates them across messages.
 
 ---
 
 ## 🛠️ Local Testing
 
-You can run individual parts of the pipeline locally without having to trigger the full bot via Telegram. This is great for debugging prompts, API limits, or parsing errors. 
-
-**Make sure you have an `.env` file with `REPLICATE_API_TOKEN` and `OPENROUTER_API_KEY`.**
-
-The `tmp/` folder will comfortably cache outputs at every step and act as the input for the *next* step so you don't rebuild from scratch.
-
-### 🏃 Running Steps Independently
-
-Run these bash commands in order. If you need to re-run a step, you can just execute it again without starting over!
+Run individual pipeline steps without Telegram. Results are cached in `tmp/` between steps.
 
 ```bash
-# Step 0: Upload initial mock assets located in /assets to the public cloud
+# Step 0: Normalize assets & upload to public URL
 node src/test_local.js 0
 
-# Step 1: Transcribe the uploaded voice note using WhisperX
+# Step 1: Transcribe voice note (WhisperX)
 node src/test_local.js 1
 
-# Step 2: Generate Lip-sync A-Roll using Pixverse
+# Step 2: Generate Lip-sync A-Roll (Pixverse)
 node src/test_local.js 2
 
-# Step 3: Download A-Roll locally for composition
+# Step 3: Download A-Roll locally
 node src/test_local.js 3
 
-# Step 4: Describe B-Roll clips using Gemini 2.5 Pro
+# Step 4: Describe B-Roll clips (Gemini 2.5 Pro)
 node src/test_local.js 4
 
-# Step 5: Pre-render photo B-rolls as video clips with Ken Burns animation
+# Step 5: Pre-render photo B-rolls (Ken Burns animation)
 node src/test_local.js 5
 
-# Step 6: Plan the edit based on descriptions and transcript
+# Step 6: Plan the edit (Gemini 2.5 Pro)
 node src/test_local.js 6
 
-# Step 7: Compose the final video using local FFmpeg
+# Step 7: Compose final video (FFmpeg)
 node src/test_local.js 7
 
-# Step 8: Generate the final viral caption (OpenRouter)
+# Step 8: Generate viral caption (GPT-4o)
 node src/test_local.js 8
 ```
 
-> **Note:** Running `node src/test_local.js` without any arguments will completely wipe the `./tmp` folder and execute all 0-8 steps continuously.
+> Running `node src/test_local.js` without arguments wipes `tmp/` and runs all steps 0–8.
 
+---
+
+## ⚠️ Notes
+
+- Video composition uses **local FFmpeg**. The `Dockerfile` installs it automatically for cloud deploys.
+- Telegram uses **long polling** (no webhook needed). Works identically on local and Railway.
+- Session state lives in-memory (`session.js`). A server restart clears all sessions.
+- Telegram sends album items as separate messages. The bot uses a 4-second debounce timer to group B-roll items together before starting the pipeline.
+- Photo B-rolls are pre-rendered with a Ken Burns zoom animation before being composited.

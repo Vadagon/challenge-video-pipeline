@@ -12,6 +12,8 @@ const { generateARoll } = require('./pipeline/generateAroll');
 const { analyzeBRoll } = require('./pipeline/analyzeBroll');
 const { composeVideo } = require('./pipeline/composeVideo');
 const { generateCaption } = require('./pipeline/generateCaption');
+const { renderPhotoBrolls } = require('./pipeline/renderPhotoBrolls');
+const { getVideoSize } = require('./utils/duration');
 
 const app = express();
 app.use(express.json());
@@ -20,16 +22,21 @@ app.get('/', (req, res) => {
     res.send('Video Pipeline Server is running!');
 });
 
-app.post('/webhook', async (req, res) => {
-    // Always respond to Telegram immediately to avoid retries
-    res.sendStatus(200);
-
+// Start Telegram Polling instead of using webhooks
+telegram.startPolling(async (update) => {
     try {
-        const update = req.body;
-        const sessionRes = await sessionManager.handleUpdate(update);
+        const sessionRes = await sessionManager.handleUpdate(update, (pipelineData) => {
+            if (pipelineData && !pipelineData.skip) {
+                // Run the heavy pipeline asynchronously
+                runPipeline(pipelineData).catch(err => {
+                    console.error("Pipeline failed:", err);
+                    telegram.sendMessage(pipelineData.chatId, `❌ Pipeline error: ${err.message}`);
+                });
+            }
+        });
 
+        // Retain synchronous support in case a future step decides to return pipeline data directly
         if (sessionRes && !sessionRes.skip) {
-            // Run the heavy pipeline asynchronously
             runPipeline(sessionRes).catch(err => {
                 console.error("Pipeline failed:", err);
                 telegram.sendMessage(sessionRes.chatId, `❌ Pipeline error: ${err.message}`);
@@ -100,7 +107,17 @@ async function runPipeline({ chatId, audioUrl, videos, rawCaption }) {
             }
         }
 
-        // 5. Compose Video (Local FFmpeg)
+        // 5. Pre-render photo B-rolls as video clips
+        await telegram.sendMessage(chatId, "🖼️ Pre-rendering photo B-rolls...");
+        try {
+            const canvas = getVideoSize(aRollLocal);
+            brolls = await renderPhotoBrolls(brolls, '/tmp', canvas);
+        } catch (e) {
+            console.warn("Photo B-roll rendering warning:", e.message);
+            // Non-fatal: composeVideo will skip clips without valid localPaths
+        }
+
+        // 6. Compose Video (Local FFmpeg)
         await telegram.sendMessage(chatId, "🎬 Composing final video...");
         let finalVideoPath;
         try {

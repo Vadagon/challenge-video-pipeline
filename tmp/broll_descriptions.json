@@ -1,110 +1,95 @@
 [
   {
-    "url": "http://tmpfiles.org/dl/27644694/img_0513.mp4",
+    "url": "http://tmpfiles.org/dl/27826449/img_0513.mp4",
     "duration": 6.639002,
     "type": "video",
-    "description": "A low-angle, selfie-style video of a young man with short, styled blonde hair and blue eyes walking through a brightly lit, modern indoor space that resembles an airport terminal. He wears a black t-shirt and a bag strap is visible over his shoulder. He looks directly into the camera with a neutral, serious expression as he moves forward. The camera is handheld and moves with him, capturing the motion of walking.",
+    "description": "A low-angle, selfie-style close-up video of a young man with short blonde-brown hair and blue eyes walking through what appears to be an airport or a large, modern terminal. He is wearing a black t-shirt and has a strap over his shoulder. He looks directly and seriously into the camera as he moves forward. The background is a brightly lit space with a tiled ceiling and recessed lights, which moves past him, emphasizing his forward motion. The overall mood is neutral and candid, capturing a moment of travel or transit.",
     "keywords": [
-      "man",
-      "walking",
       "travel",
       "airport",
-      "terminal",
+      "walking",
+      "man",
       "selfie",
       "journey",
-      "solo traveler",
-      "neutral",
-      "calm",
       "transit"
     ],
-    "suggestedDuration": 4,
-    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/assets/dist/IMG_0513.mp4"
+    "suggestedDuration": 3
   },
   {
-    "url": "http://tmpfiles.org/dl/27644698/img_0520.mp4",
+    "url": "http://tmpfiles.org/dl/27826455/img_0520.mp4",
     "duration": 8.166667,
     "type": "video",
-    "description": "A handheld, point-of-view shot traveling down a city sidewalk in what appears to be Vietnam. The camera pans and zooms in on a bustling outdoor cafe or food stall under a large umbrella, where people are sitting at tables. Several motorbikes are parked nearby. The focus lands on a glowing yellow neon sign in the background that reads 'BÁNH MÌ', capturing a vibrant, everyday street food scene.",
+    "description": "A handheld, point-of-view shot from a city sidewalk in what appears to be a Southeast Asian country. The camera quickly zooms in on a lively outdoor street food stall or cafe. We see people sitting at tables under umbrellas with string lights, several scooters parked nearby, and lush green trees. The focus of the zoom is a bright yellow neon sign that reads 'BÁNH MÌ', which the narrator exclaims with excitement.",
     "keywords": [
-      "street scene",
+      "street food",
       "Vietnam",
+      "Banh Mi",
+      "travel",
       "city life",
       "sidewalk cafe",
-      "Banh Mi",
-      "food stall",
-      "travel",
-      "Asia",
-      "motorbikes",
+      "scooters",
+      "discovery",
       "urban",
-      "street food"
+      "funny"
     ],
-    "suggestedDuration": 4,
-    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/assets/dist/IMG_0520.mp4"
+    "suggestedDuration": 4
   },
   {
-    "url": "http://tmpfiles.org/dl/27644703/img_0560.mp4",
+    "url": "http://tmpfiles.org/dl/27826460/img_0560.mp4",
     "duration": 11.8,
     "type": "video",
-    "description": "A first-person perspective video of a person working on a laptop in an outdoor or semi-outdoor setting. The screen initially shows a web interface for a video generation tool, then switches to a workflow diagram, and finally to a code editor with lines of code. The user's hand is visible on the Cyrillic/English keyboard and trackpad. The camera then quickly pans away from the laptop, showing a blurred view of a patio or balcony with green foliage and a trellis.",
+    "description": "A first-person point-of-view shot of a person working on a laptop outdoors, possibly on a balcony or at a cafe. The laptop screen shows different interfaces, including a code editor, a workflow diagram, and a web-based AI video generation tool. A hand is visible typing on the keyboard, which has both Latin and Cyrillic letters. The video ends with a quick, shaky pan to the right, offering a blurred glimpse of the outdoor environment with green foliage.",
     "keywords": [
       "coding",
       "programming",
       "developer",
-      "tech",
-      "laptop",
       "remote work",
-      "software development",
+      "digital nomad",
+      "laptop",
       "AI",
-      "productivity",
-      "first-person view",
-      "balcony"
+      "technology",
+      "working outdoors",
+      "behind the scenes",
+      "POV"
     ],
-    "suggestedDuration": 4,
-    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/assets/dist/IMG_0560.mp4"
+    "suggestedDuration": 5
   },
   {
-    "url": "http://tmpfiles.org/dl/27644704/photo_2026-03-0710.06.24.jpeg",
+    "url": "http://tmpfiles.org/dl/27826462/photo_2026-03-0710.06.24.jpeg",
     "duration": 5,
-    "type": "video",
-    "description": "A first-person perspective shot of a productive work session at a cafe. An open laptop showing lines of code sits in the center of a dark, rustic wooden table. To the sides of the laptop are a swing-top glass bottle of water, a notebook with handwritten notes, and a glass of iced tea on a wooden saucer. The scene is viewed through a large window looking out onto a bright, leafy street in what appears to be an Asian city, with ornate buildings and decorative lanterns hanging just outside the window. The mood is calm, focused, and embodies a 'work from anywhere' or 'study' aesthetic.",
+    "type": "photo",
+    "description": "A first-person perspective shot from a cafe, showing a work setup on a dark, rustic wooden table. A modern laptop is open, displaying lines of computer code, indicating a programming or web development task. To the left is a notebook with handwriting, a glass, and a swing-top bottle of water. To the right, a glass of orange-colored iced tea with a straw sits on a wooden coaster. The entire scene is set against a large window overlooking a residential street with cars, lush green trees, and ornate houses. The mood is calm, focused, and productive, embodying a typical 'digital nomad' or 'work from a cafe' aesthetic.",
     "keywords": [
-      "work from cafe",
+      "remote work",
       "digital nomad",
       "coding",
-      "programming",
-      "laptop",
-      "freelance",
-      "study",
-      "productivity",
       "cafe",
-      "coffee shop",
-      "remote work",
-      "travel",
-      "lo-fi",
-      "desk setup"
+      "working",
+      "laptop",
+      "productivity",
+      "studygram",
+      "focus",
+      "programming"
     ],
-    "suggestedDuration": 3,
-    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/tmp/photo_broll_3.mp4"
+    "suggestedDuration": 3
   },
   {
-    "url": "http://tmpfiles.org/dl/27644709/photo_2026-03-0710.06.26.jpeg",
+    "url": "http://tmpfiles.org/dl/27826467/photo_2026-03-0710.06.26.jpeg",
     "duration": 5,
-    "type": "video",
-    "description": "A full-length mirror selfie of a fit, shirtless young man posing in a stylish bathroom. He has defined abs, messy brown hair, and is wearing dark shorts, white socks, and grey sneakers. He holds a smartphone to take the picture, looking directly at the camera. The setting is visually striking, with a prominent wall of deep teal, fish-scale patterned tiles surrounding the wood-framed mirror. The reflection reveals a light grey tiled wall behind him and a wood-look tiled floor. The mood is casual and confident, suitable for fitness, body positivity, or lifestyle content.",
+    "type": "photo",
+    "description": "A full-length mirror selfie of a slim, fit man who is shirtless, showing off his abs. He is standing in a stylish bathroom with unique decor, holding his phone to take the picture. The wall behind the mirror features striking deep teal, fish-scale patterned tiles. In the reflection, the wall behind him is made of light grey tiles, and the floor has a light wood appearance.",
     "keywords": [
-      "selfie",
       "mirror selfie",
-      "fitness",
+      "man",
+      "shirtless",
       "abs",
+      "fit",
+      "fitness",
       "bathroom",
       "stylish",
-      "man",
-      "posing",
-      "body positive",
-      "get ready with me",
-      "fit"
+      "self-confidence",
+      "physique"
     ],
-    "suggestedDuration": 3,
-    "localPath": "/Users/vladyslavverbytskyi/Work/n8n/challenge-video-pipeline1/tmp/photo_broll_4.mp4"
+    "suggestedDuration": 3
   }
 ]

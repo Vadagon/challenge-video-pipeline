@@ -51,4 +51,41 @@ async function sendVideo(chatId, videoPath, caption) {
     }
 }
 
-module.exports = { sendMessage, getFileUrl, sendVideo };
+let lastUpdateId = 0;
+
+async function startPolling(onUpdate, pollInterval = 1000) {
+    console.log("Started Telegram Bot polling...");
+
+    const poll = async () => {
+        try {
+            const resp = await axios.get(`${getApiBase()}/getUpdates`, {
+                params: {
+                    offset: lastUpdateId + 1,
+                    timeout: 30 // Long polling timeout
+                }
+            });
+
+            if (resp.data && resp.data.ok && resp.data.result) {
+                const updates = resp.data.result;
+                for (const update of updates) {
+                    if (update.update_id > lastUpdateId) {
+                        lastUpdateId = update.update_id;
+                    }
+                    try {
+                        await onUpdate(update);
+                    } catch (err) {
+                        console.error("Error processing update:", err);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Polling error:", error.message);
+        }
+
+        setTimeout(poll, pollInterval);
+    };
+
+    poll();
+}
+
+module.exports = { sendMessage, getFileUrl, sendVideo, startPolling };
