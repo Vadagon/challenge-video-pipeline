@@ -27,6 +27,52 @@ function formatAssTime(seconds) {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${c.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Splits transcription segments into smaller chunks for better readability.
+ * Aiming for max 2 lines (approx 8-10 words).
+ */
+function splitTranscriptionSegments(segments, maxWords = 10) {
+    const result = [];
+    for (const seg of segments) {
+        const words = seg.text.trim().split(/\s+/);
+        if (words.length <= maxWords) {
+            // Process the single segment
+            let text = seg.text.trim();
+            // If it's a bit long, split it into 2 lines manually
+            if (words.length > 5) {
+                const mid = Math.ceil(words.length / 2);
+                text = words.slice(0, mid).join(" ") + "\\N" + words.slice(mid).join(" ");
+            }
+            result.push({ ...seg, text });
+            continue;
+        }
+
+        const totalDuration = seg.end - seg.start;
+        const timePerWord = totalDuration / words.length;
+
+        for (let i = 0; i < words.length; i += maxWords) {
+            const chunkWords = words.slice(i, i + maxWords);
+            let chunkText = chunkWords.join(" ");
+
+            // Auto-wrap into 2 lines if needed
+            if (chunkWords.length > 5) {
+                const mid = Math.ceil(chunkWords.length / 2);
+                chunkText = chunkWords.slice(0, mid).join(" ") + "\\N" + chunkWords.slice(mid).join(" ");
+            }
+
+            const chunkStart = seg.start + (i * timePerWord);
+            const chunkEnd = seg.start + (Math.min(i + maxWords, words.length) * timePerWord);
+
+            result.push({
+                start: chunkStart,
+                end: chunkEnd,
+                text: chunkText
+            });
+        }
+    }
+    return result;
+}
+
 async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, headerText = "", transcription = null, captionsEnabled = true) {
     if (!aRollPath) throw new Error("Missing A-Roll local path for composition");
     if (!fs.existsSync(aRollPath)) throw new Error("A-Roll local file not found: " + aRollPath);
@@ -79,6 +125,10 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, h
     // Generate Subtitles if enabled and transcription available
     if (captionsEnabled && transcription && transcription.segments) {
         subtitlePath = `/tmp/subtitles_${chatId || Date.now()}.ass`;
+
+        // Split segments into smaller chunks (max 10 words / 2 lines)
+        const refinedSegments = splitTranscriptionSegments(transcription.segments, 10);
+
         const assHeader = `[Script Info]
 ScriptType: v4.00+
 PlayResX: ${CW}
@@ -86,22 +136,22 @@ PlayResY: ${CH}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,60,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,2,50,50,150,1
+Style: Default,Arial,72,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,4,1,2,50,50,200,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
         let assEvents = "";
-        for (const seg of transcription.segments) {
+        for (const seg of refinedSegments) {
             const start = formatAssTime(seg.start);
             const end = formatAssTime(seg.end);
-            const text = seg.text.replace(/\n/g, "\\N").trim();
+            const text = seg.text.trim(); // splitTranscriptionSegments already handled \N
             if (text) {
                 assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}\n`;
             }
         }
         fs.writeFileSync(subtitlePath, assHeader + assEvents);
-        console.log(`[Compose] Subtitles generated at ${subtitlePath}`);
+        console.log(`[Compose] Subtitles generated at ${subtitlePath} (${refinedSegments.length} events)`);
     }
 
     // Build filter_complex: each clip → fit+blur composite → overlay on timeline

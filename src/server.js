@@ -100,6 +100,10 @@ async function runPipeline({ chatId, audioUrl, videos, rawCaption, headerText, c
         try {
             await downloadFile(aRollResultUrl, aRollLocal);
             downloadedPaths.push(aRollLocal);
+
+            // Send intermediate A-roll to user
+            await telegram.sendMessage(chatId, "🎙️ A-roll (lip-sync) generated! Previewing below...");
+            await telegram.sendVideo(chatId, aRollLocal, "A-roll Preview (Lip-sync)");
         } catch (e) {
             throw new Error(`Failed to download A-Roll: ${e.message}`);
         }
