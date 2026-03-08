@@ -102,8 +102,9 @@ Within a few minutes, the bot sends back:
        │
        ▼
 [Session Manager]  ─── Step 0: Collect voice + A-roll video
-       │                Step 1: Confirm → "send b-rolls now"
-       │                Step 2: Collect B-rolls (4s debounce)
+       │                Step 1: Set header (/header) or toggle caps
+       │                Step 2: Collect B-rolls (one by one)
+       │                Step 3: Trigger Render (/start)
        ▼
 [1. Transcribe Audio]      ── WhisperX via Replicate
        ▼
@@ -113,13 +114,13 @@ Within a few minutes, the bot sends back:
        ▼
 [4. Analyze B-Rolls]       ── Gemini 2.5 Pro describes clips + plans edit
        ▼
-[5. Download B-Rolls]      ── Download to /tmp
+[5. Pre-render Photos]     ── FFmpeg Ken Burns animation
        ▼
-[6. Render Photo B-Rolls]  ── FFmpeg Ken Burns animation (photos → video)
+[6. Compose Video]         ── FFmpeg (B-rolls + Header + Subtitles)
        ▼
-[7. Compose Video]         ── FFmpeg overlays B-rolls onto A-roll
+[7. Generate Caption]      ── GPT-4o writes viral caption
        ▼
-[8. Generate Caption]      ── GPT-4o writes viral caption
+[8. Extra Polish Step]     ── Placeholder for final refinements
        ▼
 [9. Send Result]           ── Upload video + caption to Telegram
 ```

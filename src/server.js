@@ -49,7 +49,7 @@ telegram.startPolling(async (update) => {
     }
 });
 
-async function runPipeline({ chatId, audioUrl, videos, rawCaption, headerText }) {
+async function runPipeline({ chatId, audioUrl, videos, rawCaption, headerText, captionsEnabled }) {
     const downloadedPaths = [];
 
     try {
@@ -165,13 +165,13 @@ async function runPipeline({ chatId, audioUrl, videos, rawCaption, headerText })
         await telegram.sendMessage(chatId, "🎬 Composing final video...");
         let finalVideoPath;
         try {
-            finalVideoPath = await composeVideo(chatId, aRollLocal, brolls, editPlan, headerText);
+            finalVideoPath = await composeVideo(chatId, aRollLocal, brolls, editPlan, headerText, transcription, captionsEnabled);
             downloadedPaths.push(finalVideoPath);
         } catch (e) {
             throw new Error(`Video composition failed: ${e.message}`);
         }
 
-        // 6. Generate Caption
+        // 7. Generate Caption
         await telegram.sendMessage(chatId, "✍️ Generating viral caption...");
         let viralCaption = rawCaption; // Fallback
         try {
@@ -180,7 +180,12 @@ async function runPipeline({ chatId, audioUrl, videos, rawCaption, headerText })
             console.warn("Caption generation failed, using raw caption:", e.message);
         }
 
-        // 7. Send Result to User
+        // 8. Extra Step (Placeholder for user specified polish)
+        // This step runs after caption generation as requested.
+        console.log(`[Step 8] Running extra polish step for ${chatId}...`);
+        // TODO: Implement specific logic if requested (e.g. logo overlay, metadata, etc.)
+
+        // 9. Send Result to User
         await telegram.sendMessage(chatId, "🚀 Uploading your masterpiece!");
         try {
             await telegram.sendVideo(chatId, finalVideoPath, viralCaption);

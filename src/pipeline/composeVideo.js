@@ -16,7 +16,18 @@ const execAsync = promisify(exec);
  *   — Any letterbox/pillarbox area is filled by a blurred copy of the same clip.
  *   — No forced zoom on videos (photos already have Ken Burns baked in).
  */
-async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, headerText = "") {
+/**
+ * Formats seconds into ASS time format: H:MM:SS.cc
+ */
+function formatAssTime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    const c = Math.floor((seconds % 1) * 100);
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${c.toString().padStart(2, '0')}`;
+}
+
+async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, headerText = "", transcription = null, captionsEnabled = true) {
     if (!aRollPath) throw new Error("Missing A-Roll local path for composition");
     if (!fs.existsSync(aRollPath)) throw new Error("A-Roll local file not found: " + aRollPath);
 
@@ -25,7 +36,7 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, h
     // Explicitly target Instagram format.
     const CW = 1080;
     const CH = 1920;
-    console.log(`[Compose] A-Roll: ${aRollDuration.toFixed(2)}s. Target: ${CW}x${CH}. Header: "${headerText}"`);
+    console.log(`[Compose] A-Roll: ${aRollDuration.toFixed(2)}s. Target: ${CW}x${CH}. Header: "${headerText}". Captions: ${captionsEnabled}`);
 
     if (aRollDuration <= 0) {
         throw new Error("Invalid A-Roll duration detected (0s).");
@@ -63,21 +74,34 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, h
     }
 
     const outputFilePath = `/tmp/final_${chatId || Date.now()}.mp4`;
+    let subtitlePath = null;
 
-    // Fast-path: If no valid B-rolls to overlay, just scale the A-roll directly and copy audio
-    if (planWithInputs.length === 0) {
-        console.warn("[Compose] No valid B-roll inserts found. Generating A-Roll only.");
-        let vf = `scale=${CW}:${CH}:force_original_aspect_ratio=increase,crop=${CW}:${CH}`;
+    // Generate Subtitles if enabled and transcription available
+    if (captionsEnabled && transcription && transcription.segments) {
+        subtitlePath = `/tmp/subtitles_${chatId || Date.now()}.ass`;
+        const assHeader = `[Script Info]
+ScriptType: v4.00+
+PlayResX: ${CW}
+PlayResY: ${CH}
 
-        if (headerText) {
-            // Escape single quotes for FFmpeg drawtext
-            const escapedHeader = headerText.replace(/'/g, "'\\''");
-            vf += `,drawtext=text='${escapedHeader}':fontcolor=white:fontsize=64:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:box=1:boxcolor=black@0.4:boxborderw=30:x=(w-tw)/2:y=200`;
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,60,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,2,50,50,150,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+        let assEvents = "";
+        for (const seg of transcription.segments) {
+            const start = formatAssTime(seg.start);
+            const end = formatAssTime(seg.end);
+            const text = seg.text.replace(/\n/g, "\\N").trim();
+            if (text) {
+                assEvents += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}\n`;
+            }
         }
-
-        const cmd = `ffmpeg -y -i "${aRollPath}" -vf "${vf}" -c:v libx264 -preset veryfast -crf 23 -c:a copy -t ${aRollDuration} "${outputFilePath}"`;
-        await execAsync(cmd);
-        return outputFilePath;
+        fs.writeFileSync(subtitlePath, assHeader + assEvents);
+        console.log(`[Compose] Subtitles generated at ${subtitlePath}`);
     }
 
     // Build filter_complex: each clip → fit+blur composite → overlay on timeline
@@ -87,60 +111,69 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, h
     filterParts.push(`[0:v]scale=${CW}:${CH}:force_original_aspect_ratio=increase,crop=${CW}:${CH}[base]`);
 
     let prevOutput = "[base]";
-    let layerIdx = 1;
 
-    for (const plan of planWithInputs) {
-        const scaledLabel = `scaled${plan.inputIdx}`;
-        const outLabel = `layer${layerIdx}`;
+    // If there are B-rolls, layer them
+    if (planWithInputs.length > 0) {
+        let layerIdx = 1;
+        for (const plan of planWithInputs) {
+            const scaledLabel = `scaled${plan.inputIdx}`;
+            const outLabel = `layer${layerIdx}`;
 
-        const bgLabel = `bg${plan.inputIdx}`;
-        const fgLabel = `fg${plan.inputIdx}`;
-        const spLabel = `sp${plan.inputIdx}`;
+            const bgLabel = `bg${plan.inputIdx}`;
+            const fgLabel = `fg${plan.inputIdx}`;
+            const spLabel = `sp${plan.inputIdx}`;
 
-        // 1. Split clip stream into two copies
-        filterParts.push(`[${plan.inputIdx}:v]split=2[${spLabel}a][${spLabel}b]`);
+            // 1. Split clip stream into two copies
+            filterParts.push(`[${plan.inputIdx}:v]split=2[${spLabel}a][${spLabel}b]`);
 
-        // 2. Background: scale-up to cover canvas + crop + lighter blur for performance
-        filterParts.push(
-            `[${spLabel}a]` +
-            `scale=${CW}:${CH}:force_original_aspect_ratio=increase,` +
-            `crop=${CW}:${CH},` +
-            `boxblur=15:2` + // Optimization: Fast blur
-            `[${bgLabel}]`
-        );
+            // 2. Background: scale-up to cover canvas + crop + lighter blur for performance
+            filterParts.push(
+                `[${spLabel}a]` +
+                `scale=${CW}:${CH}:force_original_aspect_ratio=increase,` +
+                `crop=${CW}:${CH},` +
+                `boxblur=15:2` + // Optimization: Fast blur
+                `[${bgLabel}]`
+            );
 
-        // 3. Foreground: fit (contain) within canvas, no cropping
-        filterParts.push(
-            `[${spLabel}b]` +
-            `scale=${CW}:${CH}:force_original_aspect_ratio=decrease,` +
-            `pad=${CW}:${CH}:(ow-iw)/2:(oh-ih)/2:black@0,` +
-            `setsar=1` +
-            `[${fgLabel}]`
-        );
+            // 3. Foreground: fit (contain) within canvas, no cropping
+            filterParts.push(
+                `[${spLabel}b]` +
+                `scale=${CW}:${CH}:force_original_aspect_ratio=decrease,` +
+                `pad=${CW}:${CH}:(ow-iw)/2:(oh-ih)/2:black@0,` +
+                `setsar=1` +
+                `[${fgLabel}]`
+            );
 
-        // 4. Composite: blurred bg + sharp fg centered
-        filterParts.push(
-            `[${bgLabel}][${fgLabel}]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2[${scaledLabel}]`
-        );
+            // 4. Composite: blurred bg + sharp fg centered
+            filterParts.push(
+                `[${bgLabel}][${fgLabel}]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2[${scaledLabel}]`
+            );
 
-        // 5. Layer onto main timeline
-        //    eof_action=pass: when the clip ends, it disappears cleanly (no freeze)
-        filterParts.push(
-            `${prevOutput}[${scaledLabel}]overlay=0:0:` +
-            `enable='between(t,${plan.startTime},${plan.startTime + plan.duration})':` +
-            `eof_action=pass[${outLabel}]`
-        );
+            // 5. Layer onto main timeline
+            filterParts.push(
+                `${prevOutput}[${scaledLabel}]overlay=0:0:` +
+                `enable='between(t,${plan.startTime},${plan.startTime + plan.duration})':` +
+                `eof_action=pass[${outLabel}]`
+            );
 
-        prevOutput = `[${outLabel}]`;
-        layerIdx++;
+            prevOutput = `[${outLabel}]`;
+            layerIdx++;
+        }
     }
 
     // 6. Final Header Text Overlay (on top of everything)
     if (headerText) {
         const escapedHeader = headerText.replace(/'/g, "'\\''");
-        // We use a common Linux font path for Railway. Locally on Mac it might fail but we prioritize the deployment.
-        filterParts.push(`${prevOutput}drawtext=text='${escapedHeader}':fontcolor=white:fontsize=64:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:box=1:boxcolor=black@0.4:boxborderw=30:x=(w-tw)/2:y=200[finalout]`);
-        prevOutput = "[finalout]";
+        const headerLabel = `header_v`;
+        filterParts.push(`${prevOutput}drawtext=text='${escapedHeader}':fontcolor=white:fontsize=64:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:box=1:boxcolor=black@0.4:boxborderw=30:x=(w-tw)/2:y=200[${headerLabel}]`);
+        prevOutput = `[${headerLabel}]`;
+    }
+
+    // 7. Apply Subtitles if they exist
+    if (subtitlePath) {
+        const subLabel = `subs_v`;
+        filterParts.push(`${prevOutput}subtitles='${subtitlePath}':fontsdir=/usr/share/fonts/truetype/dejavu/[${subLabel}]`);
+        prevOutput = `[${subLabel}]`;
     }
 
     const filterComplex = filterParts.join("; ");
@@ -164,6 +197,10 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, h
         await execAsync(ffmpegCommand, { timeout: 300000 });
     } catch (err) {
         throw new Error(`FFmpeg execution failed: ${err.stderr || err.message}`);
+    } finally {
+        if (subtitlePath && fs.existsSync(subtitlePath)) {
+            fs.unlinkSync(subtitlePath);
+        }
     }
 
     if (!fs.existsSync(outputFilePath)) {
