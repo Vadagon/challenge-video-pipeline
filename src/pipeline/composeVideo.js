@@ -16,7 +16,7 @@ const execAsync = promisify(exec);
  *   — Any letterbox/pillarbox area is filled by a blurred copy of the same clip.
  *   — No forced zoom on videos (photos already have Ken Burns baked in).
  */
-async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
+async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, headerText = "") {
     if (!aRollPath) throw new Error("Missing A-Roll local path for composition");
     if (!fs.existsSync(aRollPath)) throw new Error("A-Roll local file not found: " + aRollPath);
 
@@ -25,7 +25,7 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
     // Explicitly target Instagram format.
     const CW = 1080;
     const CH = 1920;
-    console.log(`[Compose] A-Roll: ${aRollDuration.toFixed(2)}s. Target: ${CW}x${CH}`);
+    console.log(`[Compose] A-Roll: ${aRollDuration.toFixed(2)}s. Target: ${CW}x${CH}. Header: "${headerText}"`);
 
     if (aRollDuration <= 0) {
         throw new Error("Invalid A-Roll duration detected (0s).");
@@ -67,7 +67,15 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
     // Fast-path: If no valid B-rolls to overlay, just scale the A-roll directly and copy audio
     if (planWithInputs.length === 0) {
         console.warn("[Compose] No valid B-roll inserts found. Generating A-Roll only.");
-        const cmd = `ffmpeg -y -i "${aRollPath}" -vf "scale=${CW}:${CH}:force_original_aspect_ratio=increase,crop=${CW}:${CH}" -c:v libx264 -preset veryfast -crf 23 -c:a copy -t ${aRollDuration} "${outputFilePath}"`;
+        let vf = `scale=${CW}:${CH}:force_original_aspect_ratio=increase,crop=${CW}:${CH}`;
+
+        if (headerText) {
+            // Escape single quotes for FFmpeg drawtext
+            const escapedHeader = headerText.replace(/'/g, "'\\''");
+            vf += `,drawtext=text='${escapedHeader}':fontcolor=white:fontsize=64:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:box=1:boxcolor=black@0.4:boxborderw=30:x=(w-tw)/2:y=200`;
+        }
+
+        const cmd = `ffmpeg -y -i "${aRollPath}" -vf "${vf}" -c:v libx264 -preset veryfast -crf 23 -c:a copy -t ${aRollDuration} "${outputFilePath}"`;
         await execAsync(cmd);
         return outputFilePath;
     }
@@ -125,6 +133,14 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan) {
 
         prevOutput = `[${outLabel}]`;
         layerIdx++;
+    }
+
+    // 6. Final Header Text Overlay (on top of everything)
+    if (headerText) {
+        const escapedHeader = headerText.replace(/'/g, "'\\''");
+        // We use a common Linux font path for Railway. Locally on Mac it might fail but we prioritize the deployment.
+        filterParts.push(`${prevOutput}drawtext=text='${escapedHeader}':fontcolor=white:fontsize=64:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:box=1:boxcolor=black@0.4:boxborderw=30:x=(w-tw)/2:y=200[finalout]`);
+        prevOutput = "[finalout]";
     }
 
     const filterComplex = filterParts.join("; ");

@@ -14,6 +14,37 @@ async function handleUpdate(update, onReady) {
     if (!message) return { skip: true, reason: 'no message' };
 
     const chatId = String(message.chat.id);
+    const text = (message.text || message.caption || "").trim();
+
+    // ── COMMAND HANDLING ──────────────────────────────────────────────────
+
+    // /start or /stop command: Reset everything
+    if (text === '/start' || text === '/stop') {
+        delete sessions[chatId];
+        await telegram.sendMessage(
+            chatId,
+            "🔄 Session reset! Send a voice note to start a new project."
+        );
+        return { skip: true, reason: 'session reset' };
+    }
+
+    // /header command: Set overlay text
+    if (text.startsWith('/header')) {
+        let session = sessions[chatId] || { step: 0 };
+        const headerText = text.replace('/header', '').trim();
+
+        if (!headerText) {
+            await telegram.sendMessage(chatId, "⚠️ Please provide text after /header. Example: `/header Road to 100k$`");
+            return { skip: true, reason: 'empty header' };
+        }
+
+        session.headerText = headerText;
+        sessions[chatId] = session;
+
+        await telegram.sendMessage(chatId, `✅ Header set to: "${headerText}"\nThis will appear at the top of your final video.`);
+        return { skip: true, reason: 'header set' };
+    }
+
     let session = sessions[chatId] || { step: 0 };
 
     // Prevent duplicate processing if already in progress (but allow new voice notes to reset)
@@ -138,7 +169,8 @@ async function handleUpdate(update, onReady) {
                     chatId,
                     audioUrl: finalSession.audioUrl,
                     videos: allVideos,
-                    rawCaption: finalSession.caption || ""
+                    rawCaption: finalSession.caption || "",
+                    headerText: finalSession.headerText || ""
                 };
 
                 // Trigger the pipeline using the provided callback

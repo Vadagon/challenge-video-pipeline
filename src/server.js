@@ -49,7 +49,7 @@ telegram.startPolling(async (update) => {
     }
 });
 
-async function runPipeline({ chatId, audioUrl, videos, rawCaption }) {
+async function runPipeline({ chatId, audioUrl, videos, rawCaption, headerText }) {
     const downloadedPaths = [];
 
     try {
@@ -165,7 +165,7 @@ async function runPipeline({ chatId, audioUrl, videos, rawCaption }) {
         await telegram.sendMessage(chatId, "🎬 Composing final video...");
         let finalVideoPath;
         try {
-            finalVideoPath = await composeVideo(chatId, aRollLocal, brolls, editPlan);
+            finalVideoPath = await composeVideo(chatId, aRollLocal, brolls, editPlan, headerText);
             downloadedPaths.push(finalVideoPath);
         } catch (e) {
             throw new Error(`Video composition failed: ${e.message}`);
