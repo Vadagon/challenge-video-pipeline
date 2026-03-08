@@ -101,8 +101,8 @@ async function composeVideo(chatId, aRollPath, brollsWithLocalPaths, editPlan, h
             }
             const inputIdx = inputs.length;
 
-            // Offset the input so the clip stream starts at its planned timestamp
-            inputs.push(`-itsoffset ${plan.startTime} -i "${clip.localPath}"`);
+            // Remove -itsoffset from here. We will delay it inside filter_complex
+            inputs.push(`-i "${clip.localPath}"`);
 
             // Cap duration to available clip length
             const clipDuration = getDuration(clip.localPath);
@@ -173,8 +173,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const fgLabel = `fg${plan.inputIdx}`;
             const spLabel = `sp${plan.inputIdx}`;
 
-            // 1. Split clip stream into two copies
-            filterParts.push(`[${plan.inputIdx}:v]split=2[${spLabel}a][${spLabel}b]`);
+            // NEW: Use tpad to delay the stream start time, and setpts to re-align timestamps
+            const padTime = plan.startTime;
+            const delayedStreamId = `delayed${plan.inputIdx}`;
+
+            // Advance the stream with blank frames until startTime, then map timestamps to the new padded timeline.
+            // This is critical because -itsoffset fails inside filter_complex when not mapped directly.
+            filterParts.push(`[${plan.inputIdx}:v]tpad=start_duration=${padTime}:color=black@0,setpts=PTS-STARTPTS[${delayedStreamId}]`);
+
+            // 1. Split padded clip stream into two copies
+            filterParts.push(`[${delayedStreamId}]split=2[${spLabel}a][${spLabel}b]`);
 
             // 2. Background: scale-up to cover canvas + crop + lighter blur for performance
             filterParts.push(
@@ -200,6 +208,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             );
 
             // 5. Layer onto main timeline
+            // Because the stream is padded, its actual footage exists from startTime to startTime + duration
             filterParts.push(
                 `${prevOutput}[${scaledLabel}]overlay=0:0:` +
                 `enable='between(t,${plan.startTime},${plan.startTime + plan.duration})':` +
