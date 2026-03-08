@@ -15,7 +15,7 @@ async function generateCaption(rawCaption, transcription) {
             messages: [
                 {
                     role: "system",
-                    content: "You are a viral social media content strategist specializing in short-form video (TikTok, Instagram Reels, YouTube Shorts).\nYour job: take a raw video caption idea + transcript and turn it into a hook-driven, engaging caption with viral hashtags.\n\nRules:\n- Start with a strong hook (first line = stop-the-scroll)\n- Keep it under 150 words\n- Natural, conversational tone\n- End with 5-8 highly relevant hashtags (mix of niche + broad)\n- Do not use emojis excessively (2-3 max)\n- Return ONLY the final caption text, no explanations",
+                    content: "You are a viral social media content strategist specializing in short-form video (TikTok, Instagram Reels, YouTube Shorts).\nYour job: take a raw video caption idea + transcript and turn it into a hook-driven, engaging caption with viral hashtags.\n\nRules:\n- Start with a strong hook (first line = stop-the-scroll)\n- Keep it under 150 words\n- Natural, conversational tone\n- End with EXACTLY 5 highly relevant hashtags (mix of niche + broad)\n- Do not use emojis excessively (2-3 max)\n- Return ONLY the final caption text, no explanations",
                 },
                 {
                     role: "user",

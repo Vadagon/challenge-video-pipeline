@@ -156,19 +156,29 @@ Return a JSON array only: [{"startTime": 1, "duration": 3, "clipIndex": 0, "reas
         if (fullContent) {
             console.log(`\n[AI Plan Response] Finished accumulation.`);
             const raw = fullContent.replace(/```json|```/g, "").trim();
-            const jsonMatch = raw.match(/\[[\s\S]*\]/);
-            editPlan = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+            const jsonMatch = raw.match(/\[\s*\{[\s\S]*\}\s*\]/); // Robust array detection
+            try {
+                editPlan = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+            } catch (e) {
+                console.warn("[AI] JSON Parse failed for edit plan, falling back to distribution.");
+            }
         }
     } catch (err) {
         console.error("\nFailed to generate edit plan:", err.message);
-        // fallback: insert clips evenly
-        editPlan = videoDescriptions.map((v, i) => ({
-            startTime: 4 + i * 6,
-            duration: v.suggestedDuration || 3,
+    }
+
+    // Final safety check: if editPlan is empty or invalid, generate a simple distribution fallback
+    if (!Array.isArray(editPlan) || editPlan.length === 0) {
+        console.log("[AI] No valid edit plan found. Generating fallback distribution...");
+        editPlan = videoDescriptions.slice(0, 5).map((v, i) => ({
+            startTime: 3 + i * 5,
+            duration: Math.min(v.duration || 3, 4),
             clipIndex: i,
-            reason: "evenly distributed fallback",
+            reason: "safety fallback distribution",
         }));
     }
+
+    console.log(`[AI] Final Edit Plan:`, JSON.stringify(editPlan, null, 2));
     return editPlan;
 }
 
